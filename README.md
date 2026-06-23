@@ -37,6 +37,7 @@ Weitere Befehle: `npm run build` (Produktions-Build), `npm run start` (Build sta
 | `/dashboard`        | Statistik-Kacheln, Tabs, Filter, Schul-Karten                          |
 | `/schule/[id]`      | Schul-Detail: Kontakt, Status/Wiedervorlage/Notiz, Anruf-Historie      |
 | `/passwort-aendern` | Passwort setzen (erzwungen beim ersten Login via `passwort_geaendert`) |
+| `/admin/leitungen`  | **Admin:** Leitungen auflisten, anlegen (Login + Temp-Passwort), (de)aktivieren |
 
 ## Architektur
 
@@ -63,9 +64,19 @@ Die eigentliche Durchsetzung erfolgt über die **RLS-Policies** in Supabase;
 die UI spiegelt die Rechte (Felder werden bei fehlender Berechtigung
 deaktiviert).
 
-## Noch offen (spätere Phasen)
+## Leitungen anlegen (Admin)
 
-- Admin-Oberfläche zum **Anlegen neuer Leitungen** – das Erstellen von
-  Auth-Usern benötigt den Supabase **Service-Role-Key** und muss daher über
-  eine geschützte Server-Route/Edge-Function laufen (nicht mit dem
-  Publishable Key im Browser möglich).
+Unter `/admin/leitungen` kann ein Admin neue Leitungen anlegen. Das Erstellen
+von Auth-Usern läuft über eine **Server Action** (`app/admin/leitungen/actions.ts`)
+mit dem Supabase **Service-Role-Key** – dieser ist geheim und wird nur
+serverseitig verwendet (`lib/supabase/admin.ts`), nie im Browser.
+
+**Voraussetzung:** Trage den Service-Role-Key in `.env.local` ein:
+
+```
+SUPABASE_SERVICE_ROLE_KEY=...   # Supabase → Project Settings → API → service_role
+```
+
+Beim Anlegen wird ein **temporäres Passwort** erzeugt und einmalig angezeigt
+(zum Weitergeben). Die neue Leitung muss es beim ersten Login ändern
+(`passwort_geaendert = false`).

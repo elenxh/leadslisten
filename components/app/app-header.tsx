@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { LogOut, ShieldCheck } from "lucide-react";
+import { LogOut, ShieldCheck, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -37,7 +37,14 @@ export function AppHeader({ leitung }: { leitung: Leitung }) {
           <span className="hidden sm:inline">Tutorio Akquise</span>
         </Link>
 
-        <DropdownMenu>
+        <div className="flex items-center gap-1">
+          {leitung.rolle === "admin" && (
+            <Button variant="ghost" size="sm" render={<Link href="/admin/leitungen" />}>
+              <Users className="size-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">Leitungen</span>
+            </Button>
+          )}
+          <DropdownMenu>
           <DropdownMenuTrigger
             render={<Button variant="ghost" className="h-auto gap-2 px-2 py-1" />}
           >
@@ -68,6 +75,7 @@ export function AppHeader({ leitung }: { leitung: Leitung }) {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        </div>
       </div>
     </header>
   );
