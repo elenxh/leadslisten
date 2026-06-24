@@ -38,6 +38,7 @@ Weitere Befehle: `npm run build` (Produktions-Build), `npm run start` (Build sta
 | `/schule/[id]`      | Schul-Detail: Kontakt, Status/Wiedervorlage/Notiz, Anruf-Historie      |
 | `/passwort-aendern` | Passwort setzen (erzwungen beim ersten Login via `passwort_geaendert`) |
 | `/admin/leitungen`  | **Admin:** Leitungen auflisten, anlegen (Login + Temp-Passwort), (de)aktivieren |
+| `/admin/import`     | **Admin:** Excel-Import (Lilly-Format .xlsx), Preview + Zuweisung |
 
 ## Architektur
 
@@ -80,3 +81,20 @@ SUPABASE_SERVICE_ROLE_KEY=...   # Supabase → Project Settings → API → serv
 Beim Anlegen wird ein **temporäres Passwort** erzeugt und einmalig angezeigt
 (zum Weitergeben). Die neue Leitung muss es beim ersten Login ändern
 (`passwort_geaendert = false`).
+
+## Excel-Import (Admin)
+
+Unter `/admin/import` importiert ein Admin Akquise-Listen im **Lilly-Format**
+(`.xlsx`): mehrere Sheets je Schulart, Daten ab **Zeile 4**, Spalten **A–I**
+(A Schulname, B Bezirk, C Schulart, D Homepage, E Ansprechpartner, F Rolle,
+G E-Mail, H Telefon, I Notiz/Adresse → `notiz_original`).
+
+- Die Datei wird im Browser geparst (Drag & Drop), Preview zeigt die ersten 10
+  Schulen + Anzahl je Sheet. Der eigentliche Schreibvorgang läuft als
+  **Server Action** (`app/admin/import/actions.ts`) mit dem Service-Role-Key.
+- **Ring** wird automatisch aus der Stadt (= erster Teil des Bezirks) berechnet
+  (`lib/berlin-ring.ts`); Schulen außerhalb Brandenburgs → Ring `null`.
+- **Duplikate** (Name + Bezirk): nur **Stammdaten** werden aktualisiert.
+  `status`, `naechster_anruf`, `akquise_notiz` und die bestehende
+  **Zuständigkeit** bleiben unangetastet. Neue Schulen erhalten Status `neu`
+  und die im Dropdown gewählte zuständige Leitung.

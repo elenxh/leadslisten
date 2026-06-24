@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { LogOut, ShieldCheck, Users } from "lucide-react";
+import { LogOut, ShieldCheck, Upload, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -42,6 +42,12 @@ export function AppHeader({ leitung }: { leitung: Leitung }) {
             <Button variant="ghost" size="sm" render={<Link href="/admin/leitungen" />}>
               <Users className="size-4 sm:mr-1.5" />
               <span className="hidden sm:inline">Leitungen</span>
+            </Button>
+          )}
+          {leitung.rolle === "admin" && (
+            <Button variant="ghost" size="sm" render={<Link href="/admin/import" />}>
+              <Upload className="size-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">Import</span>
             </Button>
           )}
           <DropdownMenu>
