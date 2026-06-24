@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import {
   CalendarClock,
   Handshake,
+  LayoutGrid,
+  List,
   MapPin,
   MessagesSquare,
   School,
@@ -30,6 +32,8 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatCard } from "@/components/app/stat-card";
 import { SchulCard } from "@/components/app/schul-card";
+import { SchulTable } from "@/components/app/schul-table";
+import { cn } from "@/lib/utils";
 import {
   StandortSidebar,
   STANDORT_ALLE,
@@ -48,6 +52,9 @@ import type {
 } from "@/lib/types";
 
 type TabKey = "meine" | "faellig" | "woche" | "koop" | "alle";
+type ViewMode = "kachel" | "liste";
+
+const VIEW_STORAGE_KEY = "leadslisten:schul-view";
 
 export function DashboardClient({
   schulen,
@@ -71,6 +78,19 @@ export function DashboardClient({
   const [standortFilter, setStandortFilter] = useState<string>(STANDORT_ALLE);
   const [search, setSearch] = useState("");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  // Standard: Kachel. Beim Mount aus localStorage übernehmen (vermeidet
+  // SSR-Hydration-Mismatch).
+  const [view, setView] = useState<ViewMode>("kachel");
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(VIEW_STORAGE_KEY);
+    if (stored === "kachel" || stored === "liste") setView(stored);
+  }, []);
+
+  function changeView(next: ViewMode) {
+    setView(next);
+    window.localStorage.setItem(VIEW_STORAGE_KEY, next);
+  }
 
   // Realtime: refresh server data on any change to schulen.
   useEffect(() => {
@@ -301,6 +321,40 @@ export function DashboardClient({
                 ))}
               </SelectContent>
             </Select>
+
+            {/* Ansicht umschalten: Kachel / Liste */}
+            <div className="inline-flex shrink-0 items-center rounded-lg border p-0.5">
+              <button
+                type="button"
+                onClick={() => changeView("kachel")}
+                aria-label="Kachelansicht"
+                aria-pressed={view === "kachel"}
+                title="Kacheln"
+                className={cn(
+                  "rounded-md p-1.5 transition-colors",
+                  view === "kachel"
+                    ? "bg-muted text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <LayoutGrid className="size-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => changeView("liste")}
+                aria-label="Listenansicht"
+                aria-pressed={view === "liste"}
+                title="Liste"
+                className={cn(
+                  "rounded-md p-1.5 transition-colors",
+                  view === "liste"
+                    ? "bg-muted text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <List className="size-4" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -316,6 +370,8 @@ export function DashboardClient({
             <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
               Keine Schulen in dieser Ansicht.
             </div>
+          ) : view === "liste" ? (
+            <SchulTable schulen={filtered} showLeitung={admin} />
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
               {filtered.map((s) => (
