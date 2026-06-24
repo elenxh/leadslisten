@@ -227,7 +227,11 @@ export function SchuleDetail({
                 disabled={!canEdit}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue>
+                    {(v: string) =>
+                      STATUS_LIST.find((s) => s.value === v)?.label ?? v
+                    }
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {STATUS_LIST.map((s) => (
@@ -259,7 +263,14 @@ export function SchuleDetail({
                 <Label>Zuständige Leitung</Label>
                 <Select value={zustaendig || "none"} onValueChange={(v) => setZustaendig(v && v !== "none" ? v : "")}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Nicht zugewiesen" />
+                    <SelectValue placeholder="Nicht zugewiesen">
+                      {(v: string) =>
+                        v && v !== "none"
+                          ? leitungen.find((l) => l.id === v)?.name ??
+                            "Nicht zugewiesen"
+                          : "Nicht zugewiesen"
+                      }
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Nicht zugewiesen</SelectItem>
@@ -275,7 +286,14 @@ export function SchuleDetail({
                 <Label>Standort</Label>
                 <Select value={standort || "none"} onValueChange={(v) => setStandort(v && v !== "none" ? v : "")}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Kein Standort" />
+                    <SelectValue placeholder="Kein Standort">
+                      {(v: string) =>
+                        v && v !== "none"
+                          ? standorte.find((s) => s.id === v)?.name ??
+                            "Kein Standort"
+                          : "Kein Standort"
+                      }
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Kein Standort</SelectItem>

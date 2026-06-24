@@ -129,7 +129,11 @@ export function AnrufDialog({
             <Label>Art</Label>
             <Select value={typ} onValueChange={(v) => setTyp(v as AnrufTyp)}>
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue>
+                  {(v: string) =>
+                    ANRUF_TYP_LIST.find((t) => t.value === v)?.label ?? v
+                  }
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {ANRUF_TYP_LIST.map((t) => (
@@ -145,7 +149,13 @@ export function AnrufDialog({
             <Label>Neuer Status (optional)</Label>
             <Select value={statusNeu} onValueChange={(v) => setStatusNeu((v as string) ?? KEEP)}>
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue>
+                  {(v: string) =>
+                    !v || v === KEEP
+                      ? "Status beibehalten"
+                      : STATUS_LIST.find((s) => s.value === v)?.label ?? v
+                  }
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={KEEP}>Status beibehalten</SelectItem>

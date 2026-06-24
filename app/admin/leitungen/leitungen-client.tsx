@@ -351,7 +351,11 @@ function CreateLeitungDialog({ standorte }: { standorte: Standort[] }) {
                   <Label>Rolle</Label>
                   <Select value={rolle} onValueChange={(v) => setRolle((v as Rolle) ?? "leitung")}>
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue>
+                        {(v: string) =>
+                          v === "admin" ? "Admin" : "Standortleitung"
+                        }
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="leitung">Standortleitung</SelectItem>

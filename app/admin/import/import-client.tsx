@@ -299,7 +299,14 @@ export function ImportClient({
                 onValueChange={(v) => setZustaendig((v as string) ?? UNASSIGNED)}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue />
+                  <SelectValue>
+                    {(v: string) =>
+                      v && v !== UNASSIGNED
+                        ? leitungen.find((l) => l.id === v)?.name ??
+                          "Nicht zuweisen"
+                        : "Nicht zuweisen"
+                    }
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={UNASSIGNED}>Nicht zuweisen</SelectItem>
@@ -321,7 +328,14 @@ export function ImportClient({
                     onValueChange={(v) => setStandort((v as string) ?? UNASSIGNED)}
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue />
+                      <SelectValue>
+                        {(v: string) =>
+                          v && v !== UNASSIGNED
+                            ? standorte.find((s) => s.id === v)?.name ??
+                              "Kein Standort"
+                            : "Kein Standort"
+                        }
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value={UNASSIGNED}>Kein Standort</SelectItem>

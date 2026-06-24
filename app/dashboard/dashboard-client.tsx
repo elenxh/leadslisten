@@ -402,7 +402,13 @@ export function DashboardClient({
           <div className="flex gap-2">
             <Select value={statusFilter} onValueChange={(v) => setStatusFilter((v as string) ?? "all")}>
               <SelectTrigger className="w-full min-w-32 sm:w-40">
-                <SelectValue placeholder="Status" />
+                <SelectValue placeholder="Status">
+                  {(v: string) =>
+                    v === "all" || !v
+                      ? "Alle Status"
+                      : STATUS_LIST.find((s) => s.value === v)?.label ?? v
+                  }
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Alle Status</SelectItem>
@@ -415,7 +421,11 @@ export function DashboardClient({
             </Select>
             <Select value={ringFilter} onValueChange={(v) => setRingFilter((v as string) ?? "all")}>
               <SelectTrigger className="w-full min-w-24 sm:w-32">
-                <SelectValue placeholder="Ring" />
+                <SelectValue placeholder="Ring">
+                  {(v: string) =>
+                    v === "all" || !v ? "Alle Ringe" : ringLabel(Number(v))
+                  }
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Alle Ringe</SelectItem>
@@ -517,7 +527,14 @@ export function DashboardClient({
                   onValueChange={(v) => setBulkStandort((v as string) ?? "")}
                 >
                   <SelectTrigger className="h-9 w-40">
-                    <SelectValue placeholder="Standort zuweisen…" />
+                    <SelectValue placeholder="Standort zuweisen…">
+                      {(v: string) =>
+                        v
+                          ? standorte.find((s) => s.id === v)?.name ??
+                            "Standort zuweisen…"
+                          : "Standort zuweisen…"
+                      }
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {standorte.length === 0 ? (
@@ -552,7 +569,14 @@ export function DashboardClient({
                   onValueChange={(v) => setBulkLeitung((v as string) ?? "")}
                 >
                   <SelectTrigger className="h-9 w-40">
-                    <SelectValue placeholder="Leitung zuweisen…" />
+                    <SelectValue placeholder="Leitung zuweisen…">
+                      {(v: string) =>
+                        v
+                          ? leitungen.find((l) => l.id === v)?.name ??
+                            "Leitung zuweisen…"
+                          : "Leitung zuweisen…"
+                      }
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {leitungen.length === 0 ? (
