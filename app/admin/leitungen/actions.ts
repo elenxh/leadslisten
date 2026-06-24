@@ -14,6 +14,7 @@ export interface CreateLeitungInput {
   farbe: string;
   region: string;
   rolle: Rolle;
+  standortIds?: string[];
 }
 
 export type ActionResult =
@@ -99,6 +100,17 @@ export async function createLeitung(
     // Roll back the auth user so we don't leave an orphan.
     await admin.auth.admin.deleteUser(created.user.id);
     return { ok: false, error: insertErr.message };
+  }
+
+  // Optionale Standort-Zuordnungen direkt anlegen.
+  const standortIds = input.standortIds ?? [];
+  if (standortIds.length > 0) {
+    await admin.from("leitung_standort").insert(
+      standortIds.map((standort_id) => ({
+        leitung_id: created.user.id,
+        standort_id,
+      })),
+    );
   }
 
   revalidatePath("/admin/leitungen");

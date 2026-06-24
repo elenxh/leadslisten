@@ -3,7 +3,12 @@ import { redirect } from "next/navigation";
 import { AppHeader } from "@/components/app/app-header";
 import { requireLeitung } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import type { SchuleMitLeitung } from "@/lib/types";
+import type {
+  Leitung,
+  SchuleMitLeitung,
+  Standort,
+  StandortMitVorschlag,
+} from "@/lib/types";
 import { DashboardClient } from "./dashboard-client";
 
 export const dynamic = "force-dynamic";
@@ -15,16 +20,50 @@ export default async function DashboardPage() {
     redirect("/passwort-aendern");
   }
 
+  const admin = me.rolle === "admin";
   const supabase = await createClient();
+
   const { data, error } = await supabase
     .from("schulen")
-    .select(
-      "*, leitung:zustaendig(id, name, kuerzel, farbe)",
-    )
+    .select("*, leitung:zustaendig(id, name, kuerzel, farbe)")
     .order("naechster_anruf", { ascending: true, nullsFirst: false })
     .order("name", { ascending: true });
 
   const schulen = (data ?? []) as unknown as SchuleMitLeitung[];
+
+  // Standorte für die Seitenleiste laden.
+  let standorte: Standort[] = [];
+  let vorgeschlagen: StandortMitVorschlag[] = [];
+  let leitungen: Pick<Leitung, "id" | "name">[] = [];
+
+  if (admin) {
+    const { data: alle } = await supabase
+      .from("standorte")
+      .select("*, vorschlagende:vorgeschlagen_von(id, name, kuerzel, farbe)")
+      .order("name");
+    const list = (alle ?? []) as unknown as StandortMitVorschlag[];
+    standorte = list.filter((s) => s.status === "aktiv");
+    vorgeschlagen = list
+      .filter((s) => s.status === "vorgeschlagen")
+      .sort((a, b) => (a.created_at < b.created_at ? -1 : 1));
+
+    const { data: l } = await supabase
+      .from("leitungen")
+      .select("id, name")
+      .eq("aktiv", true)
+      .order("name");
+    leitungen = (l ?? []) as Pick<Leitung, "id" | "name">[];
+  } else {
+    // Leitung sieht nur ihre zugewiesenen (aktiven) Standorte.
+    const { data: ls } = await supabase
+      .from("leitung_standort")
+      .select("standort:standort_id(*)")
+      .eq("leitung_id", me.id);
+    standorte = ((ls ?? []) as unknown as { standort: Standort | null }[])
+      .map((r) => r.standort)
+      .filter((s): s is Standort => !!s && s.status === "aktiv")
+      .sort((a, b) => a.name.localeCompare(b.name, "de"));
+  }
 
   return (
     <>
@@ -34,7 +73,13 @@ export default async function DashboardPage() {
           Schulen konnten nicht geladen werden: {error.message}
         </div>
       ) : (
-        <DashboardClient schulen={schulen} me={me} />
+        <DashboardClient
+          schulen={schulen}
+          me={me}
+          standorte={standorte}
+          vorgeschlagen={vorgeschlagen}
+          leitungen={leitungen}
+        />
       )}
     </>
   );

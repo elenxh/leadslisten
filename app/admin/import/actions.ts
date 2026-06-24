@@ -13,6 +13,7 @@ import {
 export interface ImportPayload {
   rows: RawSchule[];
   zustaendigId: string | null;
+  standortId: string | null;
 }
 
 export type ImportResult =
@@ -80,21 +81,27 @@ export async function importSchulen(
     return { ok: false, error: (e as Error).message };
   }
 
+  const standortId = payload.standortId || null;
+
   // Bestehende Schulen laden, um Duplikate (Name + Bezirk) zu erkennen.
   const { data: existing, error: loadErr } = await admin
     .from("schulen")
-    .select("id, name, bezirk");
+    .select("id, name, bezirk, standort_id");
   if (loadErr) {
     return { ok: false, error: `Laden fehlgeschlagen: ${loadErr.message}` };
   }
 
-  const byKey = new Map<string, string>(); // key -> schule.id
+  const byKey = new Map<string, { id: string; standort_id: string | null }>();
   for (const s of (existing ?? []) as {
     id: string;
     name: string;
     bezirk: string | null;
+    standort_id: string | null;
   }[]) {
-    byKey.set(normalizeKey(s.name, s.bezirk), s.id);
+    byKey.set(normalizeKey(s.name, s.bezirk), {
+      id: s.id,
+      standort_id: s.standort_id,
+    });
   }
 
   const toInsert: Record<string, unknown>[] = [];
@@ -110,16 +117,21 @@ export async function importSchulen(
     }
     seen.add(key);
 
-    const existingId = byKey.get(key);
-    if (existingId) {
+    const match = byKey.get(key);
+    if (match) {
       // Nur Stammdaten aktualisieren – Akquise-Daten bleiben unberührt.
-      toUpdate.push({ id: existingId, data: stammdaten(row) });
+      // Standort wird nur gefüllt, wenn die Schule noch keinen hat
+      // (überschreibt also keine bestehende Zuordnung).
+      const data: Record<string, unknown> = stammdaten(row);
+      if (standortId && !match.standort_id) data.standort_id = standortId;
+      toUpdate.push({ id: match.id, data });
     } else {
       toInsert.push({
         name: row.name.trim(),
         ...stammdaten(row),
         status: "neu",
         zustaendig: payload.zustaendigId || null,
+        standort_id: standortId,
       });
     }
   }

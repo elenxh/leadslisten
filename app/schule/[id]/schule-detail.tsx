@@ -40,6 +40,7 @@ import type {
   Leitung,
   SchulStatus,
   SchuleMitLeitung,
+  Standort,
 } from "@/lib/types";
 
 export function SchuleDetail({
@@ -48,12 +49,14 @@ export function SchuleDetail({
   me,
   canEdit,
   leitungen,
+  standorte,
 }: {
   schule: SchuleMitLeitung;
   anrufe: AnrufMitLeitung[];
   me: Leitung;
   canEdit: boolean;
   leitungen: Pick<Leitung, "id" | "name" | "kuerzel" | "farbe">[];
+  standorte: Standort[];
 }) {
   const router = useRouter();
   const admin = me.rolle === "admin";
@@ -62,13 +65,15 @@ export function SchuleDetail({
   const [wv, setWv] = useState(schule.naechster_anruf?.slice(0, 10) ?? "");
   const [notiz, setNotiz] = useState(schule.akquise_notiz ?? "");
   const [zustaendig, setZustaendig] = useState(schule.zustaendig ?? "");
+  const [standort, setStandort] = useState(schule.standort_id ?? "");
   const [saving, setSaving] = useState(false);
 
   const dirty =
     status !== schule.status ||
     wv !== (schule.naechster_anruf?.slice(0, 10) ?? "") ||
     notiz !== (schule.akquise_notiz ?? "") ||
-    (admin && zustaendig !== (schule.zustaendig ?? ""));
+    (admin && zustaendig !== (schule.zustaendig ?? "")) ||
+    (admin && standort !== (schule.standort_id ?? ""));
 
   async function save() {
     setSaving(true);
@@ -78,7 +83,10 @@ export function SchuleDetail({
       naechster_anruf: wv || null,
       akquise_notiz: notiz.trim() || null,
     };
-    if (admin) update.zustaendig = zustaendig || null;
+    if (admin) {
+      update.zustaendig = zustaendig || null;
+      update.standort_id = standort || null;
+    }
 
     const { error } = await supabase
       .from("schulen")
@@ -246,21 +254,39 @@ export function SchuleDetail({
           </div>
 
           {admin && (
-            <div className="space-y-2">
-              <Label>Zuständige Leitung</Label>
-              <Select value={zustaendig || "none"} onValueChange={(v) => setZustaendig(v && v !== "none" ? v : "")}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Nicht zugewiesen" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nicht zugewiesen</SelectItem>
-                  {leitungen.map((l) => (
-                    <SelectItem key={l.id} value={l.id}>
-                      {l.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Zuständige Leitung</Label>
+                <Select value={zustaendig || "none"} onValueChange={(v) => setZustaendig(v && v !== "none" ? v : "")}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Nicht zugewiesen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nicht zugewiesen</SelectItem>
+                    {leitungen.map((l) => (
+                      <SelectItem key={l.id} value={l.id}>
+                        {l.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Standort</Label>
+                <Select value={standort || "none"} onValueChange={(v) => setStandort(v && v !== "none" ? v : "")}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Kein Standort" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Kein Standort</SelectItem>
+                    {standorte.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           )}
 

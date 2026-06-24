@@ -13,6 +13,8 @@ export type SchulStatus =
 
 export type AnrufTyp = "telefonat" | "mail" | "vor_ort" | "sonstiges";
 
+export type StandortStatus = "aktiv" | "vorgeschlagen";
+
 export interface Leitung {
   id: string;
   name: string;
@@ -23,6 +25,20 @@ export interface Leitung {
   rolle: Rolle;
   aktiv: boolean;
   passwort_geaendert: boolean;
+}
+
+export interface Standort {
+  id: string;
+  name: string;
+  status: StandortStatus;
+  vorgeschlagen_von: string | null; // FK -> leitungen.id
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LeitungStandort {
+  leitung_id: string;
+  standort_id: string;
 }
 
 export interface Schule {
@@ -43,6 +59,7 @@ export interface Schule {
   naechster_anruf: string | null; // ISO date (YYYY-MM-DD)
   akquise_notiz: string | null;
   zustaendig: string | null; // FK -> leitungen.id
+  standort_id: string | null; // FK -> standorte.id
 }
 
 export interface Anruf {
@@ -58,6 +75,11 @@ export interface Anruf {
 // A school joined with its responsible Leitung (for list/detail views).
 export type SchuleMitLeitung = Schule & {
   leitung: Pick<Leitung, "id" | "name" | "kuerzel" | "farbe"> | null;
+};
+
+// A Standort joined with the count of its proposing Leitung (for admin views).
+export type StandortMitVorschlag = Standort & {
+  vorschlagende: Pick<Leitung, "id" | "name" | "kuerzel" | "farbe"> | null;
 };
 
 // An Anruf joined with the Leitung who logged it.
@@ -84,6 +106,16 @@ export interface Database {
         Insert: Partial<Anruf> & { schule_id: string; typ: AnrufTyp };
         Update: Partial<Anruf>;
       };
+      standorte: {
+        Row: Standort;
+        Insert: Partial<Standort> & { name: string };
+        Update: Partial<Standort>;
+      };
+      leitung_standort: {
+        Row: LeitungStandort;
+        Insert: LeitungStandort;
+        Update: Partial<LeitungStandort>;
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -91,6 +123,7 @@ export interface Database {
       schul_status: SchulStatus;
       anruf_typ: AnrufTyp;
       rolle: Rolle;
+      standort_status: StandortStatus;
     };
   };
 }

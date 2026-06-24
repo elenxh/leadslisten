@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Copy, Loader2, UserPlus } from "lucide-react";
+import { Check, Copy, Loader2, MapPin, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -27,8 +27,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { LeitungAvatar } from "@/components/app/leitung-avatar";
+import { ChipMultiSelect } from "@/components/app/chip-multiselect";
 import { createLeitung, setLeitungAktiv } from "./actions";
-import type { Leitung, Rolle } from "@/lib/types";
+import { setLeitungStandorte } from "@/app/standorte/actions";
+import type { Leitung, Rolle, Standort } from "@/lib/types";
 
 const PRESET_COLORS = [
   "#ef4444", "#f97316", "#eab308", "#22c55e", "#14b8a6",
@@ -38,12 +40,19 @@ const PRESET_COLORS = [
 export function LeitungenClient({
   leitungen,
   schulCount,
+  standorte,
+  standortMap,
 }: {
   leitungen: Leitung[];
   schulCount: Record<string, number>;
+  standorte: Standort[];
+  standortMap: Record<string, string[]>;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+
+  const standortName = (id: string) =>
+    standorte.find((s) => s.id === id)?.name ?? "?";
 
   return (
     <div className="mx-auto max-w-4xl space-y-4 px-4 py-5">
@@ -54,61 +63,150 @@ export function LeitungenClient({
             {leitungen.length} {leitungen.length === 1 ? "Person" : "Personen"}
           </p>
         </div>
-        <CreateLeitungDialog />
+        <CreateLeitungDialog standorte={standorte} />
       </div>
 
       <div className="grid gap-3">
-        {leitungen.map((l) => (
-          <Card key={l.id}>
-            <CardContent className="flex items-center gap-3 p-3 sm:p-4">
-              <LeitungAvatar leitung={l} className="size-9" />
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium">{l.name}</span>
-                  {l.rolle === "admin" && (
-                    <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
-                      Admin
-                    </Badge>
-                  )}
-                  {!l.aktiv && (
-                    <Badge variant="secondary" className="text-muted-foreground">
-                      inaktiv
-                    </Badge>
-                  )}
+        {leitungen.map((l) => {
+          const assigned = standortMap[l.id] ?? [];
+          return (
+            <Card key={l.id}>
+              <CardContent className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:p-4">
+                <LeitungAvatar leitung={l} className="size-9 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium">{l.name}</span>
+                    {l.rolle === "admin" && (
+                      <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
+                        Admin
+                      </Badge>
+                    )}
+                    {!l.aktiv && (
+                      <Badge variant="secondary" className="text-muted-foreground">
+                        inaktiv
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {l.email}
+                    {l.region ? ` · ${l.region}` : ""} · {schulCount[l.id] ?? 0}{" "}
+                    Schulen
+                  </p>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                    {assigned.length === 0 ? (
+                      <span className="text-xs text-muted-foreground">
+                        Keine Standorte
+                      </span>
+                    ) : (
+                      assigned.map((sid) => (
+                        <Badge key={sid} variant="secondary" className="gap-1">
+                          <MapPin className="size-3" />
+                          {standortName(sid)}
+                        </Badge>
+                      ))
+                    )}
+                  </div>
                 </div>
-                <p className="truncate text-xs text-muted-foreground">
-                  {l.email}
-                  {l.region ? ` · ${l.region}` : ""} · {schulCount[l.id] ?? 0}{" "}
-                  Schulen
-                </p>
-              </div>
-              <Button
-                variant={l.aktiv ? "outline" : "default"}
-                size="sm"
-                disabled={pending}
-                onClick={() =>
-                  startTransition(async () => {
-                    const res = await setLeitungAktiv(l.id, !l.aktiv);
-                    if (!res.ok) {
-                      toast.error("Fehlgeschlagen", { description: res.error });
-                    } else {
-                      toast.success(l.aktiv ? "Deaktiviert" : "Aktiviert");
-                      router.refresh();
+                <div className="flex shrink-0 gap-2">
+                  <StandorteZuweisenDialog
+                    leitung={l}
+                    standorte={standorte}
+                    assigned={assigned}
+                  />
+                  <Button
+                    variant={l.aktiv ? "outline" : "default"}
+                    size="sm"
+                    disabled={pending}
+                    onClick={() =>
+                      startTransition(async () => {
+                        const res = await setLeitungAktiv(l.id, !l.aktiv);
+                        if (!res.ok) {
+                          toast.error("Fehlgeschlagen", { description: res.error });
+                        } else {
+                          toast.success(l.aktiv ? "Deaktiviert" : "Aktiviert");
+                          router.refresh();
+                        }
+                      })
                     }
-                  })
-                }
-              >
-                {l.aktiv ? "Deaktivieren" : "Aktivieren"}
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
+                  >
+                    {l.aktiv ? "Deaktivieren" : "Aktivieren"}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function CreateLeitungDialog() {
+function StandorteZuweisenDialog({
+  leitung,
+  standorte,
+  assigned,
+}: {
+  leitung: Leitung;
+  standorte: Standort[];
+  assigned: string[];
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState<string[]>(assigned);
+  const [pending, startTransition] = useTransition();
+
+  function save() {
+    startTransition(async () => {
+      const res = await setLeitungStandorte(leitung.id, value);
+      if (!res.ok) {
+        toast.error("Speichern fehlgeschlagen", { description: res.error });
+        return;
+      }
+      toast.success("Standorte gespeichert");
+      setOpen(false);
+      router.refresh();
+    });
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (o) setValue(assigned); // beim Öffnen aktuellen Stand übernehmen
+      }}
+    >
+      <DialogTrigger render={<Button variant="outline" size="sm" />}>
+        <MapPin className="size-4 sm:mr-1.5" />
+        <span className="hidden sm:inline">Standorte</span>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Standorte zuweisen</DialogTitle>
+          <DialogDescription>
+            Welche Standorte soll {leitung.name} sehen und betreuen?
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-2">
+          <ChipMultiSelect
+            options={standorte.map((s) => ({ id: s.id, label: s.name }))}
+            value={value}
+            onChange={setValue}
+            emptyHint="Noch keine aktiven Standorte vorhanden."
+          />
+        </div>
+        <DialogFooter>
+          <Button onClick={save} disabled={pending}>
+            {pending && <Loader2 className="mr-2 size-4 animate-spin" />}
+            Speichern
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CreateLeitungDialog({ standorte }: { standorte: Standort[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -122,6 +220,7 @@ function CreateLeitungDialog() {
   const [region, setRegion] = useState("");
   const [farbe, setFarbe] = useState(PRESET_COLORS[5]);
   const [rolle, setRolle] = useState<Rolle>("leitung");
+  const [standortIds, setStandortIds] = useState<string[]>([]);
 
   function resetForm() {
     setName("");
@@ -130,6 +229,7 @@ function CreateLeitungDialog() {
     setRegion("");
     setFarbe(PRESET_COLORS[5]);
     setRolle("leitung");
+    setStandortIds([]);
     setError(null);
   }
 
@@ -137,7 +237,15 @@ function CreateLeitungDialog() {
     e.preventDefault();
     setError(null);
     setSaving(true);
-    const res = await createLeitung({ name, email, kuerzel, farbe, region, rolle });
+    const res = await createLeitung({
+      name,
+      email,
+      kuerzel,
+      farbe,
+      region,
+      rolle,
+      standortIds,
+    });
     setSaving(false);
     if (!res.ok) {
       setError(res.error);
@@ -261,6 +369,16 @@ function CreateLeitungDialog() {
                   placeholder="z. B. Nord / Ring 1"
                 />
               </div>
+              {standorte.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Standorte (optional)</Label>
+                  <ChipMultiSelect
+                    options={standorte.map((s) => ({ id: s.id, label: s.name }))}
+                    value={standortIds}
+                    onChange={setStandortIds}
+                  />
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>Farbe</Label>
                 <div className="flex flex-wrap items-center gap-2">

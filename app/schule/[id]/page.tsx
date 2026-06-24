@@ -3,7 +3,12 @@ import { notFound } from "next/navigation";
 import { AppHeader } from "@/components/app/app-header";
 import { isAdmin, requireLeitung } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import type { AnrufMitLeitung, Leitung, SchuleMitLeitung } from "@/lib/types";
+import type {
+  AnrufMitLeitung,
+  Leitung,
+  SchuleMitLeitung,
+  Standort,
+} from "@/lib/types";
 import { SchuleDetail } from "./schule-detail";
 
 export const dynamic = "force-dynamic";
@@ -32,15 +37,24 @@ export default async function SchulePage({
     .eq("schule_id", params.id)
     .order("datum", { ascending: false });
 
-  // Admins can reassign — load the active Leitungen for the picker.
+  // Admins can reassign — load the active Leitungen and Standorte for the pickers.
   let leitungen: Pick<Leitung, "id" | "name" | "kuerzel" | "farbe">[] = [];
+  let standorte: Standort[] = [];
   if (isAdmin(me)) {
-    const { data } = await supabase
-      .from("leitungen")
-      .select("id, name, kuerzel, farbe")
-      .eq("aktiv", true)
-      .order("name");
-    leitungen = (data ?? []) as typeof leitungen;
+    const [{ data: l }, { data: s }] = await Promise.all([
+      supabase
+        .from("leitungen")
+        .select("id, name, kuerzel, farbe")
+        .eq("aktiv", true)
+        .order("name"),
+      supabase
+        .from("standorte")
+        .select("*")
+        .eq("status", "aktiv")
+        .order("name"),
+    ]);
+    leitungen = (l ?? []) as typeof leitungen;
+    standorte = (s ?? []) as Standort[];
   }
 
   const schuleTyped = schule as unknown as SchuleMitLeitung;
@@ -55,6 +69,7 @@ export default async function SchulePage({
         me={me}
         canEdit={canEdit}
         leitungen={leitungen}
+        standorte={standorte}
       />
     </>
   );

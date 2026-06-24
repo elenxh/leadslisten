@@ -6,12 +6,15 @@ import {
   CheckCircle2,
   FileSpreadsheet,
   Loader2,
+  Plus,
   UploadCloud,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -28,14 +31,17 @@ import {
   type RawSchule,
 } from "@/lib/excel-import";
 import { importSchulen, type ImportResult } from "./actions";
-import type { Leitung } from "@/lib/types";
+import { createStandort } from "@/app/standorte/actions";
+import type { Leitung, Standort } from "@/lib/types";
 
 const UNASSIGNED = "__none__";
 
 export function ImportClient({
   leitungen,
+  standorte: initialStandorte,
 }: {
   leitungen: Pick<Leitung, "id" | "name" | "kuerzel" | "farbe">[];
+  standorte: Standort[];
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -45,8 +51,30 @@ export function ImportClient({
   const [parseError, setParseError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [zustaendig, setZustaendig] = useState<string>(UNASSIGNED);
+  const [standorte, setStandorte] = useState<Standort[]>(initialStandorte);
+  const [standort, setStandort] = useState<string>(UNASSIGNED);
+  const [newStandort, setNewStandort] = useState<string | null>(null);
+  const [creatingStandort, setCreatingStandort] = useState(false);
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<ImportResult | null>(null);
+
+  async function addStandort() {
+    const name = (newStandort ?? "").trim();
+    if (!name) return;
+    setCreatingStandort(true);
+    const res = await createStandort(name);
+    setCreatingStandort(false);
+    if (!res.ok) {
+      toast.error("Standort anlegen fehlgeschlagen", { description: res.error });
+      return;
+    }
+    setStandorte((prev) =>
+      [...prev, res.standort].sort((a, b) => a.name.localeCompare(b.name, "de")),
+    );
+    setStandort(res.standort.id);
+    setNewStandort(null);
+    toast.success(`Standort „${res.standort.name}" angelegt`);
+  }
 
   const allRows: RawSchule[] = parsed
     ? parsed.sheets.flatMap((s) => s.schulen)
@@ -89,6 +117,8 @@ export function ImportClient({
     setParseError(null);
     setResult(null);
     setZustaendig(UNASSIGNED);
+    setStandort(UNASSIGNED);
+    setNewStandort(null);
     if (inputRef.current) inputRef.current.value = "";
   }
 
@@ -98,6 +128,7 @@ export function ImportClient({
       const res = await importSchulen({
         rows: allRows,
         zustaendigId: zustaendig === UNASSIGNED ? null : zustaendig,
+        standortId: standort === UNASSIGNED ? null : standort,
       });
       setResult(res);
       if (res.ok) {
@@ -259,15 +290,15 @@ export function ImportClient({
             </CardContent>
           </Card>
 
-          {/* Zuweisung + Import */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div className="space-y-2 sm:max-w-xs sm:flex-1">
+          {/* Zuweisung */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
               <Label>Zuständige Leitung (nur für neue Schulen)</Label>
               <Select
                 value={zustaendig}
                 onValueChange={(v) => setZustaendig((v as string) ?? UNASSIGNED)}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -280,15 +311,85 @@ export function ImportClient({
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={reset} disabled={pending}>
-                Abbrechen
-              </Button>
-              <Button onClick={runImport} disabled={pending}>
-                {pending && <Loader2 className="mr-2 size-4 animate-spin" />}
-                {parsed.total} Schulen importieren
-              </Button>
+
+            <div className="space-y-2">
+              <Label>Standort</Label>
+              {newStandort === null ? (
+                <div className="flex gap-2">
+                  <Select
+                    value={standort}
+                    onValueChange={(v) => setStandort((v as string) ?? UNASSIGNED)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={UNASSIGNED}>Kein Standort</SelectItem>
+                      {standorte.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    title="Neuen Standort anlegen"
+                    onClick={() => setNewStandort("")}
+                  >
+                    <Plus className="size-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <Input
+                    value={newStandort}
+                    onChange={(e) => setNewStandort(e.target.value)}
+                    placeholder="Neuer Standort, z. B. Bonn"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void addStandort();
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    onClick={() => void addStandort()}
+                    disabled={creatingStandort || !newStandort.trim()}
+                  >
+                    {creatingStandort ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      "Anlegen"
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    title="Abbrechen"
+                    onClick={() => setNewStandort(null)}
+                  >
+                    <X className="size-4" />
+                  </Button>
+                </div>
+              )}
             </div>
+          </div>
+
+          {/* Aktionen */}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={reset} disabled={pending}>
+              Abbrechen
+            </Button>
+            <Button onClick={runImport} disabled={pending}>
+              {pending && <Loader2 className="mr-2 size-4 animate-spin" />}
+              {parsed.total} Schulen importieren
+            </Button>
           </div>
 
           {result && !result.ok && (
