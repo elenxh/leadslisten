@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { StatusBadge } from "@/components/app/status-badge";
 import { LeitungAvatar } from "@/components/app/leitung-avatar";
+import { SelectCheckbox } from "@/components/app/select-checkbox";
 import { formatDate, isDueToday, isOverdue } from "@/lib/dates";
 import { ringLabel } from "@/lib/berlin-ring";
 import type { SchuleMitLeitung } from "@/lib/types";
@@ -12,23 +13,45 @@ import type { SchuleMitLeitung } from "@/lib/types";
 export function SchulCard({
   schule,
   showLeitung,
+  selectable,
+  selected,
+  onToggle,
 }: {
   schule: SchuleMitLeitung;
   showLeitung?: boolean;
+  selectable?: boolean;
+  selected?: boolean;
+  onToggle?: (checked: boolean) => void;
 }) {
   const overdue = isOverdue(schule.naechster_anruf);
   const dueToday = isDueToday(schule.naechster_anruf);
 
   return (
-    <Link href={`/schule/${schule.id}`} className="block">
-      <Card
-        className={cn(
-          "p-4 transition-colors hover:bg-muted/50",
-          overdue && "border-2 border-rose-500",
-          !overdue && dueToday && "border-2 border-orange-400",
-        )}
-      >
-        <div className="flex items-start justify-between gap-3">
+    <div className="relative">
+      {selectable && (
+        <span
+          className="absolute left-3 top-3 z-10"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <SelectCheckbox
+            checked={!!selected}
+            onCheckedChange={(c) => onToggle?.(c)}
+            stopOnClick
+            label={`${schule.name} auswählen`}
+          />
+        </span>
+      )}
+      <Link href={`/schule/${schule.id}`} className="block">
+        <Card
+          className={cn(
+            "p-4 transition-colors hover:bg-muted/50",
+            selectable && "pl-10",
+            selected && "ring-2 ring-primary",
+            overdue && "border-2 border-rose-500",
+            !overdue && dueToday && "border-2 border-orange-400",
+          )}
+        >
+          <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h3 className="truncate font-medium leading-tight">{schule.name}</h3>
             <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
@@ -76,7 +99,8 @@ export function SchulCard({
             {schule.tel}
           </p>
         )}
-      </Card>
-    </Link>
+        </Card>
+      </Link>
+    </div>
   );
 }

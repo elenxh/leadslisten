@@ -204,3 +204,57 @@ export async function setSchuleStandort(
   revalidatePath(`/schule/${schuleId}`);
   return { ok: true };
 }
+
+export type BulkResult =
+  | { ok: true; count: number }
+  | { ok: false; error: string };
+
+/** Admin weist mehreren Schulen gleichzeitig einen Standort zu. */
+export async function bulkSetSchulenStandort(
+  schuleIds: string[],
+  standortId: string | null,
+): Promise<BulkResult> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: "Nicht angemeldet." };
+  if (!user.isAdmin) return { ok: false, error: "Keine Berechtigung." };
+
+  const ids = Array.from(new Set(schuleIds.filter(Boolean)));
+  if (ids.length === 0) return { ok: false, error: "Keine Schulen ausgewählt." };
+
+  const ac = adminClientOrError();
+  if (!ac.ok) return ac;
+
+  const { error } = await ac.admin
+    .from("schulen")
+    .update({ standort_id: standortId })
+    .in("id", ids);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/dashboard");
+  return { ok: true, count: ids.length };
+}
+
+/** Admin weist mehreren Schulen gleichzeitig eine zuständige Leitung zu. */
+export async function bulkSetSchulenLeitung(
+  schuleIds: string[],
+  leitungId: string | null,
+): Promise<BulkResult> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: "Nicht angemeldet." };
+  if (!user.isAdmin) return { ok: false, error: "Keine Berechtigung." };
+
+  const ids = Array.from(new Set(schuleIds.filter(Boolean)));
+  if (ids.length === 0) return { ok: false, error: "Keine Schulen ausgewählt." };
+
+  const ac = adminClientOrError();
+  if (!ac.ok) return ac;
+
+  const { error } = await ac.admin
+    .from("schulen")
+    .update({ zustaendig: leitungId })
+    .in("id", ids);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/dashboard");
+  return { ok: true, count: ids.length };
+}

@@ -1,17 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   CalendarClock,
   Handshake,
   LayoutGrid,
   List,
+  Loader2,
   MapPin,
   MessagesSquare,
   School,
   Search,
+  X,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -33,6 +36,11 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatCard } from "@/components/app/stat-card";
 import { SchulCard } from "@/components/app/schul-card";
 import { SchulTable } from "@/components/app/schul-table";
+import { SelectCheckbox } from "@/components/app/select-checkbox";
+import {
+  bulkSetSchulenLeitung,
+  bulkSetSchulenStandort,
+} from "@/app/standorte/actions";
 import { cn } from "@/lib/utils";
 import {
   StandortSidebar,
@@ -90,6 +98,25 @@ export function DashboardClient({
   function changeView(next: ViewMode) {
     setView(next);
     window.localStorage.setItem(VIEW_STORAGE_KEY, next);
+  }
+
+  // Massen-Auswahl (nur Admin)
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkStandort, setBulkStandort] = useState<string>("");
+  const [bulkLeitung, setBulkLeitung] = useState<string>("");
+  const [bulkPending, startBulk] = useTransition();
+
+  function toggleOne(id: string, checked: boolean) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelected(new Set());
   }
 
   // Realtime: refresh server data on any change to schulen.
@@ -193,6 +220,68 @@ export function DashboardClient({
       });
   }, [tabbed, standortFilter, statusFilter, ringFilter, search]);
 
+  // Auswahl-Status bezogen auf die aktuell gefilterten Schulen.
+  const allFilteredSelected =
+    filtered.length > 0 && filtered.every((s) => selected.has(s.id));
+  const someFilteredSelected =
+    !allFilteredSelected && filtered.some((s) => selected.has(s.id));
+
+  function toggleAllFiltered(checked: boolean) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const s of filtered) {
+        if (checked) next.add(s.id);
+        else next.delete(s.id);
+      }
+      return next;
+    });
+  }
+
+  function runBulkStandort() {
+    if (!bulkStandort) {
+      toast.error("Bitte einen Standort wählen.");
+      return;
+    }
+    const ids = Array.from(selected);
+    const name =
+      standorte.find((s) => s.id === bulkStandort)?.name ?? "Standort";
+    startBulk(async () => {
+      const res = await bulkSetSchulenStandort(ids, bulkStandort);
+      if (!res.ok) {
+        toast.error("Zuweisung fehlgeschlagen", { description: res.error });
+        return;
+      }
+      toast.success(
+        `${res.count} ${res.count === 1 ? "Schule" : "Schulen"} Standort „${name}" zugewiesen`,
+      );
+      clearSelection();
+      setBulkStandort("");
+      router.refresh();
+    });
+  }
+
+  function runBulkLeitung() {
+    if (!bulkLeitung) {
+      toast.error("Bitte eine Leitung wählen.");
+      return;
+    }
+    const ids = Array.from(selected);
+    const name = leitungen.find((l) => l.id === bulkLeitung)?.name ?? "Leitung";
+    startBulk(async () => {
+      const res = await bulkSetSchulenLeitung(ids, bulkLeitung);
+      if (!res.ok) {
+        toast.error("Zuweisung fehlgeschlagen", { description: res.error });
+        return;
+      }
+      toast.success(
+        `${res.count} ${res.count === 1 ? "Schule" : "Schulen"} ${name} zugewiesen`,
+      );
+      clearSelection();
+      setBulkLeitung("");
+      router.refresh();
+    });
+  }
+
   return (
     <div className="mx-auto flex max-w-6xl gap-6 px-4 py-5">
       {/* Sidebar – Desktop */}
@@ -208,7 +297,12 @@ export function DashboardClient({
         </div>
       </aside>
 
-      <div className="min-w-0 flex-1 space-y-5">
+      <div
+        className={cn(
+          "min-w-0 flex-1 space-y-5",
+          admin && selected.size > 0 && "pb-28",
+        )}
+      >
         {/* Statistik-Kacheln */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard
@@ -284,7 +378,18 @@ export function DashboardClient({
         </Tabs>
 
         {/* Filter */}
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          {admin && (
+            <label className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm text-muted-foreground sm:py-0 sm:h-9">
+              <SelectCheckbox
+                checked={allFilteredSelected}
+                indeterminate={someFilteredSelected}
+                onCheckedChange={toggleAllFiltered}
+                label="Alle sichtbaren Schulen auswählen"
+              />
+              <span className="whitespace-nowrap">Alle</span>
+            </label>
+          )}
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -371,16 +476,122 @@ export function DashboardClient({
               Keine Schulen in dieser Ansicht.
             </div>
           ) : view === "liste" ? (
-            <SchulTable schulen={filtered} showLeitung={admin} />
+            <SchulTable
+              schulen={filtered}
+              showLeitung={admin}
+              selectable={admin}
+              selectedIds={selected}
+              onToggle={toggleOne}
+            />
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
               {filtered.map((s) => (
-                <SchulCard key={s.id} schule={s} showLeitung={admin} />
+                <SchulCard
+                  key={s.id}
+                  schule={s}
+                  showLeitung={admin}
+                  selectable={admin}
+                  selected={selected.has(s.id)}
+                  onToggle={(c) => toggleOne(s.id, c)}
+                />
               ))}
             </div>
           )}
         </div>
       </div>
+
+      {/* Schwebende Massen-Aktionsleiste (nur Admin, bei Auswahl) */}
+      {admin && selected.size > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-40 px-3 pb-3">
+          <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-2 rounded-xl border bg-background/95 p-3 shadow-lg backdrop-blur sm:gap-3">
+            <span className="text-sm font-medium">
+              {selected.size}{" "}
+              {selected.size === 1 ? "Schule" : "Schulen"} ausgewählt
+            </span>
+
+            <div className="flex flex-1 flex-wrap items-center gap-2">
+              {/* Standort zuweisen */}
+              <div className="flex items-center gap-1">
+                <Select
+                  value={bulkStandort}
+                  onValueChange={(v) => setBulkStandort((v as string) ?? "")}
+                >
+                  <SelectTrigger className="h-9 w-40">
+                    <SelectValue placeholder="Standort zuweisen…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {standorte.length === 0 ? (
+                      <SelectItem value="__none__" disabled>
+                        Keine Standorte
+                      </SelectItem>
+                    ) : (
+                      standorte.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                <Button
+                  size="sm"
+                  onClick={runBulkStandort}
+                  disabled={bulkPending || !bulkStandort}
+                >
+                  {bulkPending && (
+                    <Loader2 className="mr-1.5 size-4 animate-spin" />
+                  )}
+                  Zuweisen
+                </Button>
+              </div>
+
+              {/* Leitung zuweisen */}
+              <div className="flex items-center gap-1">
+                <Select
+                  value={bulkLeitung}
+                  onValueChange={(v) => setBulkLeitung((v as string) ?? "")}
+                >
+                  <SelectTrigger className="h-9 w-40">
+                    <SelectValue placeholder="Leitung zuweisen…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {leitungen.length === 0 ? (
+                      <SelectItem value="__none__" disabled>
+                        Keine Leitungen
+                      </SelectItem>
+                    ) : (
+                      leitungen.map((l) => (
+                        <SelectItem key={l.id} value={l.id}>
+                          {l.name}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={runBulkLeitung}
+                  disabled={bulkPending || !bulkLeitung}
+                >
+                  Zuweisen
+                </Button>
+              </div>
+            </div>
+
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={clearSelection}
+              disabled={bulkPending}
+              title="Auswahl aufheben"
+            >
+              <X className="size-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">Aufheben</span>
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
