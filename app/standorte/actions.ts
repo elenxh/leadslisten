@@ -172,6 +172,48 @@ export async function rejectStandort(id: string): Promise<SimpleResult> {
 }
 
 /**
+ * Admin löscht ALLE Schulen/Träger eines Standorts (für sauberen Neuimport).
+ * Löscht zuerst die zugehörigen Anrufe, dann die Schulen.
+ */
+export async function deleteSchulenByStandort(
+  standortId: string,
+): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: "Nicht angemeldet." };
+  if (!user.isAdmin) return { ok: false, error: "Keine Berechtigung." };
+
+  const ac = adminClientOrError();
+  if (!ac.ok) return ac;
+
+  const { data: rows, error: loadErr } = await ac.admin
+    .from("schulen")
+    .select("id")
+    .eq("standort_id", standortId);
+  if (loadErr) return { ok: false, error: loadErr.message };
+
+  const ids = (rows ?? []).map((r) => (r as { id: string }).id);
+
+  // Abhängige Anrufe zuerst entfernen (FK-sicher), in Batches.
+  for (let i = 0; i < ids.length; i += 200) {
+    const batch = ids.slice(i, i + 200);
+    const { error } = await ac.admin
+      .from("anrufe")
+      .delete()
+      .in("schule_id", batch);
+    if (error) return { ok: false, error: error.message };
+  }
+
+  const { error: delErr } = await ac.admin
+    .from("schulen")
+    .delete()
+    .eq("standort_id", standortId);
+  if (delErr) return { ok: false, error: delErr.message };
+
+  revalidatePath("/dashboard");
+  return { ok: true, count: ids.length };
+}
+
+/**
  * Admin setzt die Standort-Zuordnungen einer Leitung (vollständig ersetzend).
  */
 export async function setLeitungStandorte(
@@ -371,11 +413,13 @@ export async function updateMarkierung(
 const STATUS_ERLAUBT = [
   "Neu",
   "Nicht erreichbar",
-  "Konzept wird weitergeleitet",
-  "Anderer Anbieter",
+  "Erstkontakt",
+  "Dokumente verschickt",
+  "Persönliches Kennenlernen",
+  "Kooperationsabschluss",
+  "Wiedervorlage Anruf",
   "Kein Interesse",
-  "Wiedervorlage",
-  "Kooperation",
+  "Anderer Anbieter",
 ];
 
 /**

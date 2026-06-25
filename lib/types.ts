@@ -5,11 +5,13 @@ export type Rolle = "leitung" | "admin";
 export type SchulStatus =
   | "Neu"
   | "Nicht erreichbar"
-  | "Konzept wird weitergeleitet"
-  | "Anderer Anbieter"
+  | "Erstkontakt"
+  | "Dokumente verschickt"
+  | "Persönliches Kennenlernen"
+  | "Kooperationsabschluss"
+  | "Wiedervorlage Anruf"
   | "Kein Interesse"
-  | "Wiedervorlage"
-  | "Kooperation";
+  | "Anderer Anbieter";
 
 export type SchulTyp = "schule" | "traeger";
 

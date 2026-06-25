@@ -10,6 +10,7 @@ import {
   MapPinned,
   Pencil,
   Plus,
+  Trash2,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -32,6 +33,7 @@ import { cn } from "@/lib/utils";
 import {
   approveStandort,
   createStandort,
+  deleteSchulenByStandort,
   proposeStandort,
   rejectStandort,
   renameStandort,
@@ -55,6 +57,7 @@ export function StandortSidebar({
   onChange,
   isAdmin,
   leitungen,
+  totalCounts,
   className,
 }: {
   data: SidebarData;
@@ -62,6 +65,7 @@ export function StandortSidebar({
   onChange: (v: string) => void;
   isAdmin: boolean;
   leitungen: Pick<Leitung, "id" | "name">[];
+  totalCounts?: Record<string, number>; // Gesamtzahl je Standort (für "leeren")
   className?: string;
 }) {
   return (
@@ -91,6 +95,7 @@ export function StandortSidebar({
                 key={s.id}
                 standort={s}
                 count={data.counts[s.id] ?? 0}
+                totalCount={totalCounts?.[s.id] ?? 0}
                 active={value === s.id}
                 onClick={() => onChange(s.id)}
               />
@@ -182,11 +187,13 @@ function SidebarItem({
 function StandortNavRow({
   standort,
   count,
+  totalCount,
   active,
   onClick,
 }: {
   standort: Standort;
   count: number;
+  totalCount: number;
   active: boolean;
   onClick: () => void;
 }) {
@@ -213,15 +220,22 @@ function StandortNavRow({
           {count}
         </span>
       </button>
-      <EditStandortDialog standort={standort} />
+      <EditStandortDialog standort={standort} totalCount={totalCount} />
     </div>
   );
 }
 
-function EditStandortDialog({ standort }: { standort: Standort }) {
+function EditStandortDialog({
+  standort,
+  totalCount,
+}: {
+  standort: Standort;
+  totalCount: number;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(standort.name);
+  const [confirm, setConfirm] = useState("");
   const [pending, startTransition] = useTransition();
 
   function submit(e: React.FormEvent) {
@@ -243,12 +257,33 @@ function EditStandortDialog({ standort }: { standort: Standort }) {
     });
   }
 
+  function leeren() {
+    startTransition(async () => {
+      const res = await deleteSchulenByStandort(standort.id);
+      if (!res.ok) {
+        toast.error("Löschen fehlgeschlagen", { description: res.error });
+        return;
+      }
+      toast.success(
+        `${res.count} ${res.count === 1 ? "Eintrag" : "Einträge"} gelöscht`,
+      );
+      setConfirm("");
+      setOpen(false);
+      router.refresh();
+    });
+  }
+
+  const confirmOk = confirm.trim().toLowerCase() === standort.name.trim().toLowerCase();
+
   return (
     <Dialog
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
-        if (o) setName(standort.name); // aktuellen Namen übernehmen
+        if (o) {
+          setName(standort.name); // aktuellen Namen übernehmen
+          setConfirm("");
+        }
       }}
     >
       <DialogTrigger
@@ -296,6 +331,36 @@ function EditStandortDialog({ standort }: { standort: Standort }) {
             </Button>
           </DialogFooter>
         </form>
+
+        {/* Gefahrenzone: alle Einträge des Standorts löschen */}
+        <div className="mt-2 space-y-2 rounded-md border border-destructive/40 bg-destructive/5 p-3">
+          <p className="flex items-center gap-1.5 text-sm font-medium text-destructive">
+            <Trash2 className="size-4" />
+            Standort leeren
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Löscht unwiderruflich <strong>{totalCount}</strong>{" "}
+            {totalCount === 1 ? "Eintrag" : "Einträge"} (Schulen/Träger inkl.
+            Verlauf) dieses Standorts. Zum Bestätigen den Standortnamen tippen.
+          </p>
+          <Input
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            placeholder={standort.name}
+            disabled={pending || totalCount === 0}
+            aria-label="Standortnamen zum Bestätigen tippen"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            onClick={leeren}
+            disabled={pending || !confirmOk || totalCount === 0}
+            className="w-full border-destructive/50 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+          >
+            {pending && <Loader2 className="mr-2 size-4 animate-spin" />}
+            {totalCount} {totalCount === 1 ? "Eintrag" : "Einträge"} löschen
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

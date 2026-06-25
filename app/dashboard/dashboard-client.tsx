@@ -76,7 +76,10 @@ type Bereich = "schule" | "traeger";
 const VIEW_STORAGE_KEY = "leadslisten:schul-view";
 
 // Diese Status gelten als erledigt: aus der aktiven Liste/Zählung ausblenden.
-const ERLEDIGT_STATUS: readonly string[] = ["Kein Interesse", "Kooperation"];
+const ERLEDIGT_STATUS: readonly string[] = [
+  "Kooperationsabschluss",
+  "Kein Interesse",
+];
 const istErledigt = (s: SchuleMitLeitung) =>
   ERLEDIGT_STATUS.includes(s.status);
 
@@ -114,6 +117,16 @@ export function DashboardClient({
     () => new Set(standorte.map((s) => s.id)),
     [standorte],
   );
+
+  // Gesamtzahl ALLER Einträge (Schulen + Träger, alle Status) je Standort –
+  // für die "Standort leeren"-Bestätigung.
+  const totalByStandort = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const s of schulen) {
+      if (s.standort_id) m[s.standort_id] = (m[s.standort_id] ?? 0) + 1;
+    }
+    return m;
+  }, [schulen]);
 
   // standort_id -> { farbe -> bezeichnung }
   const legendeByStandort = useMemo(() => {
@@ -203,7 +216,7 @@ export function DashboardClient({
       faellig: aktiv.filter(
         (s) => isDueToday(s.wiedervorlage_am) || isOverdue(s.wiedervorlage_am),
       ).length,
-      wiedervorlage: aktiv.filter((s) => s.status === "Wiedervorlage").length,
+      wiedervorlage: aktiv.filter((s) => s.status === "Wiedervorlage Anruf").length,
       erledigt: statScope.filter(istErledigt).length,
     };
   }, [statScope]);
@@ -388,6 +401,7 @@ export function DashboardClient({
             onChange={setStandortFilter}
             isAdmin={admin}
             leitungen={leitungen}
+            totalCounts={totalByStandort}
           />
         </div>
       </aside>
@@ -451,10 +465,10 @@ export function DashboardClient({
             value={stats.wiedervorlage}
             icon={MessagesSquare}
             accent="bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-200"
-            active={statusFilter === "Wiedervorlage"}
+            active={statusFilter === "Wiedervorlage Anruf"}
             onClick={() =>
               setStatusFilter((cur) =>
-                cur === "Wiedervorlage" ? "all" : "Wiedervorlage",
+                cur === "Wiedervorlage Anruf" ? "all" : "Wiedervorlage Anruf",
               )
             }
           />
@@ -492,6 +506,7 @@ export function DashboardClient({
                 }}
                 isAdmin={admin}
                 leitungen={leitungen}
+                totalCounts={totalByStandort}
               />
             </DialogContent>
           </Dialog>
