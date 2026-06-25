@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CalendarClock, MapPin, Phone } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { StatusBadge } from "@/components/app/status-badge";
 import { LeitungAvatar } from "@/components/app/leitung-avatar";
@@ -56,9 +57,7 @@ export function SchulCard({
             <h3 className="truncate font-medium leading-tight">{schule.name}</h3>
             <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
               <MapPin className="size-3 shrink-0" />
-              <span className="truncate">
-                {[schule.stadt, schule.schulart].filter(Boolean).join(" · ") || "—"}
-              </span>
+              <span className="truncate">{schule.stadt || "—"}</span>
             </p>
           </div>
           {showLeitung && (
@@ -68,6 +67,11 @@ export function SchulCard({
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <StatusBadge status={schule.status} />
+          {schule.schulart && (
+            <Badge variant="secondary" className="font-normal">
+              {schule.schulart}
+            </Badge>
+          )}
           {schule.ring != null && (
             <span className="text-xs text-muted-foreground">
               {ringLabel(schule.ring)}
