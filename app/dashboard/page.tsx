@@ -4,6 +4,7 @@ import { AppHeader } from "@/components/app/app-header";
 import { requireLeitung } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type {
+  FarbLegende,
   Leitung,
   SchuleMitLeitung,
   Standort,
@@ -65,6 +66,15 @@ export default async function DashboardPage() {
       .sort((a, b) => a.name.localeCompare(b.name, "de"));
   }
 
+  // Farb-Legenden laden (RLS: nur eigene Standorte bzw. alle für Admin).
+  const { data: legendeRows } = await supabase
+    .from("farb_legende")
+    .select("standort_id, farbe, bezeichnung");
+  const farbLegende = (legendeRows ?? []) as Pick<
+    FarbLegende,
+    "standort_id" | "farbe" | "bezeichnung"
+  >[];
+
   return (
     <>
       <AppHeader leitung={me} />
@@ -79,6 +89,7 @@ export default async function DashboardPage() {
           standorte={standorte}
           vorgeschlagen={vorgeschlagen}
           leitungen={leitungen}
+          farbLegende={farbLegende}
         />
       )}
     </>

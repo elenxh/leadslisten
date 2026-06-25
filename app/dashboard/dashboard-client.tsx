@@ -37,10 +37,12 @@ import { StatCard } from "@/components/app/stat-card";
 import { SchulCard } from "@/components/app/schul-card";
 import { SchulTable } from "@/components/app/schul-table";
 import { SelectCheckbox } from "@/components/app/select-checkbox";
+import { FarbLegendeDialog } from "@/components/app/farb-legende-dialog";
 import {
   bulkSetSchulenLeitung,
   bulkSetSchulenStandort,
 } from "@/app/standorte/actions";
+import { MARKIERUNG_FARBEN } from "@/lib/markierung";
 import { cn } from "@/lib/utils";
 import {
   StandortSidebar,
@@ -58,11 +60,14 @@ import {
 import { RING_OPTIONS, ringLabel } from "@/lib/berlin-ring";
 import { isDueThisWeek, isDueToday, isOverdue } from "@/lib/dates";
 import type {
+  FarbLegende,
   Leitung,
   SchuleMitLeitung,
   Standort,
   StandortMitVorschlag,
 } from "@/lib/types";
+
+type LegendeRow = Pick<FarbLegende, "standort_id" | "farbe" | "bezeichnung">;
 
 type TabKey = "meine" | "faellig" | "woche" | "koop" | "alle";
 type ViewMode = "kachel" | "liste";
@@ -75,12 +80,14 @@ export function DashboardClient({
   standorte,
   vorgeschlagen,
   leitungen,
+  farbLegende,
 }: {
   schulen: SchuleMitLeitung[];
   me: Leitung;
   standorte: Standort[];
   vorgeschlagen: StandortMitVorschlag[];
   leitungen: Pick<Leitung, "id" | "name">[];
+  farbLegende: LegendeRow[];
 }) {
   const router = useRouter();
   const admin = me.rolle === "admin";
@@ -92,7 +99,23 @@ export function DashboardClient({
   const [schulartFilter, setSchulartFilter] = useState<SchulartKategorie | "all">(
     "all",
   );
+  const [markFilter, setMarkFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
+
+  // Standorte, die der aktuelle User bearbeiten darf (Markierung/Legende).
+  const editableStandortIds = useMemo(
+    () => new Set(standorte.map((s) => s.id)),
+    [standorte],
+  );
+
+  // standort_id -> { farbe -> bezeichnung }
+  const legendeByStandort = useMemo(() => {
+    const m: Record<string, Record<string, string>> = {};
+    for (const r of farbLegende) {
+      (m[r.standort_id] ??= {})[r.farbe] = r.bezeichnung;
+    }
+    return m;
+  }, [farbLegende]);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   // Standard: Kachel. Beim Mount aus localStorage übernehmen (vermeidet
   // SSR-Hydration-Mismatch).
@@ -184,6 +207,22 @@ export function DashboardClient({
     return standorte.find((s) => s.id === standortFilter)?.name ?? null;
   }, [standortFilter, standorte]);
 
+  // Legende bezieht sich auf den aktuell gewählten konkreten Standort.
+  const legendStandortId =
+    standortFilter !== STANDORT_ALLE && standortFilter !== STANDORT_OHNE
+      ? standortFilter
+      : null;
+  const legendStandortName = legendStandortId
+    ? standorte.find((s) => s.id === legendStandortId)?.name ?? null
+    : null;
+  // Bezeichnung einer Farb-Filter-Schaltfläche (Legende des aktiven Standorts).
+  const legendeFor = (farbe: string) => {
+    const b = legendStandortId
+      ? legendeByStandort[legendStandortId]?.[farbe]?.trim()
+      : "";
+    return b || MARKIERUNG_FARBEN.find((m) => m.value === farbe)?.label || farbe;
+  };
+
   const tabbed = useMemo(() => {
     switch (tab) {
       case "meine":
@@ -214,6 +253,11 @@ export function DashboardClient({
       .filter((s) => statusFilter === "all" || s.status === statusFilter)
       .filter((s) => ringFilter === "all" || String(s.ring) === ringFilter)
       .filter((s) => {
+        if (markFilter === "all") return true;
+        if (markFilter === "none") return !s.markierung_farbe;
+        return s.markierung_farbe === markFilter;
+      })
+      .filter((s) => {
         if (!q) return true;
         return (
           s.name.toLowerCase().includes(q) ||
@@ -227,7 +271,7 @@ export function DashboardClient({
         if (da !== db) return da < db ? -1 : 1;
         return a.name.localeCompare(b.name, "de");
       });
-  }, [tabbed, standortFilter, statusFilter, ringFilter, search]);
+  }, [tabbed, standortFilter, statusFilter, ringFilter, markFilter, search]);
 
   // Anzahl je Schulart-Kategorie (innerhalb der übrigen aktiven Filter).
   const schulartCounts = useMemo(() => {
@@ -518,6 +562,53 @@ export function DashboardClient({
           </TabsList>
         </Tabs>
 
+        {/* Markierungs-Toolbar: Farbfilter + Legende */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setMarkFilter("all")}
+              className={cn(
+                "rounded-md px-2 py-1 text-xs transition-colors",
+                markFilter === "all"
+                  ? "bg-muted font-medium text-foreground"
+                  : "text-muted-foreground hover:bg-muted/60",
+              )}
+            >
+              Alle Farben
+            </button>
+            {MARKIERUNG_FARBEN.map((m) => (
+              <button
+                key={m.value}
+                type="button"
+                onClick={() =>
+                  setMarkFilter((cur) => (cur === m.value ? "all" : m.value))
+                }
+                aria-pressed={markFilter === m.value}
+                title={legendeFor(m.value)}
+                className={cn(
+                  "flex size-7 items-center justify-center rounded-md border transition-colors",
+                  markFilter === m.value
+                    ? "border-foreground"
+                    : "border-transparent hover:bg-muted/60",
+                )}
+              >
+                <span className={cn("size-3.5 rounded-full", m.dot)} />
+              </button>
+            ))}
+          </div>
+
+          <FarbLegendeDialog
+            standortId={legendStandortId}
+            standortName={legendStandortName}
+            legende={legendStandortId ? legendeByStandort[legendStandortId] ?? {} : {}}
+            editable={
+              !!legendStandortId &&
+              (admin || editableStandortIds.has(legendStandortId))
+            }
+          />
+        </div>
+
         {/* Liste */}
         <div>
           <p className="mb-2 text-sm text-muted-foreground">
@@ -537,6 +628,9 @@ export function DashboardClient({
               selectable={admin}
               selectedIds={selected}
               onToggle={toggleOne}
+              isAdmin={admin}
+              editableStandortIds={editableStandortIds}
+              legendeByStandort={legendeByStandort}
             />
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
@@ -548,6 +642,11 @@ export function DashboardClient({
                   selectable={admin}
                   selected={selected.has(s.id)}
                   onToggle={(c) => toggleOne(s.id, c)}
+                  markEditable={
+                    admin ||
+                    (!!s.standort_id && editableStandortIds.has(s.standort_id))
+                  }
+                  legende={legendeByStandort[s.standort_id ?? ""]}
                 />
               ))}
             </div>

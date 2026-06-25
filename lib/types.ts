@@ -60,6 +60,14 @@ export interface Schule {
   akquise_notiz: string | null;
   zustaendig: string | null; // FK -> leitungen.id
   standort_id: string | null; // FK -> standorte.id
+  markierung_farbe: string | null; // persönliche Farbmarkierung
+}
+
+export interface FarbLegende {
+  id: string;
+  standort_id: string;
+  farbe: string;
+  bezeichnung: string;
 }
 
 export interface Anruf {
@@ -115,6 +123,14 @@ export interface Database {
         Row: LeitungStandort;
         Insert: LeitungStandort;
         Update: Partial<LeitungStandort>;
+      };
+      farb_legende: {
+        Row: FarbLegende;
+        Insert: Partial<FarbLegende> & {
+          standort_id: string;
+          farbe: string;
+        };
+        Update: Partial<FarbLegende>;
       };
     };
     Views: Record<string, never>;

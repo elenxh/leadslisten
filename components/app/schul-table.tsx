@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { StatusBadge } from "@/components/app/status-badge";
 import { LeitungAvatar } from "@/components/app/leitung-avatar";
 import { SelectCheckbox } from "@/components/app/select-checkbox";
+import { SchulMarkierung } from "@/components/app/schul-markierung";
 import { formatDate, isDueToday, isOverdue } from "@/lib/dates";
 import type { SchuleMitLeitung } from "@/lib/types";
 
@@ -20,13 +21,21 @@ export function SchulTable({
   selectable,
   selectedIds,
   onToggle,
+  isAdmin,
+  editableStandortIds,
+  legendeByStandort,
 }: {
   schulen: SchuleMitLeitung[];
   showLeitung?: boolean;
   selectable?: boolean;
   selectedIds?: Set<string>;
   onToggle?: (id: string, checked: boolean) => void;
+  isAdmin?: boolean;
+  editableStandortIds?: Set<string>;
+  legendeByStandort?: Record<string, Record<string, string>>;
 }) {
+  const canMark = (standortId: string | null) =>
+    !!isAdmin || (!!standortId && !!editableStandortIds?.has(standortId));
   return (
     <Card className="overflow-hidden p-0">
       {/* Kopfzeile – nur Desktop */}
@@ -69,6 +78,19 @@ export function SchulTable({
                   />
                 </span>
               )}
+
+              {/* Markierung */}
+              <span
+                className="flex shrink-0 items-center"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <SchulMarkierung
+                  schuleId={s.id}
+                  farbe={s.markierung_farbe}
+                  editable={canMark(s.standort_id)}
+                  legende={legendeByStandort?.[s.standort_id ?? ""]}
+                />
+              </span>
 
               {/* Schule (+ Stadt klein auf Mobile) */}
               <div className="min-w-0 flex-1">
