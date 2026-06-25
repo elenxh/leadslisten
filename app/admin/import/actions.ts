@@ -86,7 +86,9 @@ export async function importSchulen(
   // Bestehende Schulen laden, um Duplikate (Name + Bezirk) zu erkennen.
   const { data: existing, error: loadErr } = await admin
     .from("schulen")
-    .select("id, name, bezirk, standort_id, status, erstkontakt_am");
+    .select(
+      "id, name, bezirk, standort_id, status, erstkontakt_am, wiedervorlage_am",
+    );
   if (loadErr) {
     return { ok: false, error: `Laden fehlgeschlagen: ${loadErr.message}` };
   }
@@ -98,6 +100,7 @@ export async function importSchulen(
       standort_id: string | null;
       status: string | null;
       erstkontakt_am: string | null;
+      wiedervorlage_am: string | null;
     }
   >();
   for (const s of (existing ?? []) as {
@@ -107,12 +110,14 @@ export async function importSchulen(
     standort_id: string | null;
     status: string | null;
     erstkontakt_am: string | null;
+    wiedervorlage_am: string | null;
   }[]) {
     byKey.set(normalizeKey(s.name, s.bezirk), {
       id: s.id,
       standort_id: s.standort_id,
       status: s.status,
       erstkontakt_am: s.erstkontakt_am,
+      wiedervorlage_am: s.wiedervorlage_am,
     });
   }
 
@@ -139,6 +144,10 @@ export async function importSchulen(
       if (row.erstkontakt && !match.erstkontakt_am) {
         data.erstkontakt_am = row.erstkontakt;
       }
+      // Wiedervorlage nur füllen, wenn noch leer.
+      if (row.wiedervorlage && !match.wiedervorlage_am) {
+        data.wiedervorlage_am = row.wiedervorlage;
+      }
       // Status aus der Datei übernehmen, solange er noch 'Neu'/leer ist
       // (echte Akquise-Status werden NICHT überschrieben).
       if (row.status && (!match.status || match.status === "Neu")) {
@@ -149,10 +158,10 @@ export async function importSchulen(
       toInsert.push({
         name: row.name.trim(),
         ...stammdaten(row),
-        status: row.status || "Neu", // Spalte K, sonst Default
-        erstkontakt_am: row.erstkontakt, // Spalte J (dd.mm.yyyy)
+        status: row.status || "Neu", // wörtlich, sonst Default
+        erstkontakt_am: row.erstkontakt, // "Erstkontakt am"
+        wiedervorlage_am: row.wiedervorlage, // "Wiedervorlage am"
         typ: row.typ, // 'schule' | 'traeger' (aus Schulart/Sheet)
-        // wiedervorlage_am bleibt beim Import leer
         zustaendig: payload.zustaendigId || null,
         standort_id: standortId,
       });

@@ -470,6 +470,160 @@ export async function updateStatus(
   return { ok: true };
 }
 
+export interface KontaktdatenInput {
+  ansprechpartner: string | null;
+  rolle_ap: string | null;
+  tel: string | null;
+  mail: string | null;
+  homepage: string | null;
+  adresse: string | null;
+}
+
+/**
+ * Aktualisiert die Kontakt-/Stammdaten EINER Schule. Berechtigung wie
+ * Schulart/Status: Admin immer, Leitung nur für eigene Standort-Schulen.
+ */
+export async function updateKontaktdaten(
+  schuleId: string,
+  felder: KontaktdatenInput,
+): Promise<SimpleResult> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: "Nicht angemeldet." };
+
+  const ac = adminClientOrError();
+  if (!ac.ok) return ac;
+
+  const perm = await darfSchuleBearbeiten(ac.admin, user.id, user.isAdmin, schuleId);
+  if (!perm.ok) return perm;
+
+  const norm = (v: string | null) => {
+    const t = (v ?? "").trim();
+    return t.length ? t : null;
+  };
+  const { error } = await ac.admin
+    .from("schulen")
+    .update({
+      ansprechpartner: norm(felder.ansprechpartner),
+      rolle_ap: norm(felder.rolle_ap),
+      tel: norm(felder.tel),
+      mail: norm(felder.mail),
+      homepage: norm(felder.homepage),
+      adresse: norm(felder.adresse),
+    })
+    .eq("id", schuleId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(`/schule/${schuleId}`);
+  return { ok: true };
+}
+
+export interface KontaktInput {
+  name: string;
+  rolle: string | null;
+  telefon: string | null;
+  email: string | null;
+  notiz: string | null;
+}
+
+function normKontakt(input: KontaktInput) {
+  const norm = (v: string | null) => {
+    const t = (v ?? "").trim();
+    return t.length ? t : null;
+  };
+  return {
+    name: input.name.trim(),
+    rolle: norm(input.rolle),
+    telefon: norm(input.telefon),
+    email: norm(input.email),
+    notiz: norm(input.notiz),
+  };
+}
+
+/** Fügt einer Schule einen weiteren Ansprechpartner hinzu. */
+export async function addKontakt(
+  schuleId: string,
+  input: KontaktInput,
+): Promise<SimpleResult> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: "Nicht angemeldet." };
+  if (!input.name.trim()) return { ok: false, error: "Name ist erforderlich." };
+
+  const ac = adminClientOrError();
+  if (!ac.ok) return ac;
+
+  const perm = await darfSchuleBearbeiten(ac.admin, user.id, user.isAdmin, schuleId);
+  if (!perm.ok) return perm;
+
+  const { error } = await ac.admin
+    .from("kontakte")
+    .insert({ schule_id: schuleId, ...normKontakt(input) });
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(`/schule/${schuleId}`);
+  return { ok: true };
+}
+
+/** Prüft Berechtigung über die zum Kontakt gehörende Schule. */
+async function darfKontaktBearbeiten(
+  admin: AdminClient,
+  userId: string,
+  isAdmin: boolean,
+  kontaktId: string,
+): Promise<{ ok: true; schuleId: string } | { ok: false; error: string }> {
+  const { data: k } = await admin
+    .from("kontakte")
+    .select("schule_id")
+    .eq("id", kontaktId)
+    .single();
+  if (!k) return { ok: false, error: "Kontakt nicht gefunden." };
+  const perm = await darfSchuleBearbeiten(admin, userId, isAdmin, k.schule_id);
+  if (!perm.ok) return perm;
+  return { ok: true, schuleId: k.schule_id };
+}
+
+/** Bearbeitet einen Ansprechpartner. */
+export async function updateKontakt(
+  kontaktId: string,
+  input: KontaktInput,
+): Promise<SimpleResult> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: "Nicht angemeldet." };
+  if (!input.name.trim()) return { ok: false, error: "Name ist erforderlich." };
+
+  const ac = adminClientOrError();
+  if (!ac.ok) return ac;
+
+  const perm = await darfKontaktBearbeiten(ac.admin, user.id, user.isAdmin, kontaktId);
+  if (!perm.ok) return perm;
+
+  const { error } = await ac.admin
+    .from("kontakte")
+    .update(normKontakt(input))
+    .eq("id", kontaktId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(`/schule/${perm.schuleId}`);
+  return { ok: true };
+}
+
+/** Löscht einen Ansprechpartner. */
+export async function deleteKontakt(kontaktId: string): Promise<SimpleResult> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: "Nicht angemeldet." };
+
+  const ac = adminClientOrError();
+  if (!ac.ok) return ac;
+
+  const perm = await darfKontaktBearbeiten(ac.admin, user.id, user.isAdmin, kontaktId);
+  if (!perm.ok) return perm;
+
+  const { error } = await ac.admin.from("kontakte").delete().eq("id", kontaktId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(`/schule/${perm.schuleId}`);
+  return { ok: true };
+}
+
 /**
  * Speichert die Farb-Legende (Bezeichnungen der 5 Farben) eines Standorts.
  * Berechtigung: Admin immer, Leitung nur für eigene Standorte.

@@ -77,6 +77,16 @@ export interface FarbLegende {
   bezeichnung: string;
 }
 
+export interface Kontakt {
+  id: string;
+  schule_id: string;
+  name: string;
+  rolle: string | null;
+  telefon: string | null;
+  email: string | null;
+  notiz: string | null;
+}
+
 export interface Anruf {
   id: string;
   schule_id: string;
@@ -138,6 +148,11 @@ export interface Database {
           farbe: string;
         };
         Update: Partial<FarbLegende>;
+      };
+      kontakte: {
+        Row: Kontakt;
+        Insert: Partial<Kontakt> & { schule_id: string; name: string };
+        Update: Partial<Kontakt>;
       };
     };
     Views: Record<string, never>;

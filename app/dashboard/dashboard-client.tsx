@@ -178,9 +178,18 @@ export function DashboardClient({
     clearSelection();
   }
 
+  // Träger-Erkennung: primär typ, als Sicherheitsnetz auch die Schulart
+  // (falls typ noch nicht gesetzt ist) -> Träger erscheinen NIE in der
+  // Schulliste, sondern nur im Bereich "Soziale Träger".
+  const istTraegerRow = (s: SchuleMitLeitung) =>
+    s.typ === "traeger" || /tr[äa]ger/i.test(s.schulart ?? "");
+
   // Nur Einträge des aktuellen Bereichs (Schulen ODER Träger).
   const bereichSchulen = useMemo(
-    () => schulen.filter((s) => (s.typ ?? "schule") === bereich),
+    () =>
+      schulen.filter((s) =>
+        bereich === "traeger" ? istTraegerRow(s) : !istTraegerRow(s),
+      ),
     [schulen, bereich],
   );
   const nomen = bereich === "traeger" ? "Träger" : "Schulen";

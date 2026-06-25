@@ -34,12 +34,18 @@ import { AnrufDialog } from "@/components/app/anruf-dialog";
 import { createClient } from "@/lib/supabase/client";
 import { STATUS_LIST, anrufTypLabel } from "@/lib/status";
 import { SCHULART_OPTIONS } from "@/lib/schulart";
-import { updateSchulart, updateStatus } from "@/app/standorte/actions";
+import {
+  updateKontaktdaten,
+  updateSchulart,
+  updateStatus,
+} from "@/app/standorte/actions";
 import { AmpelBadge } from "@/components/app/ampel";
+import { KontakteSection } from "@/components/app/kontakte-section";
 import { ringLabel } from "@/lib/berlin-ring";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import type {
   AnrufMitLeitung,
+  Kontakt,
   Leitung,
   SchulStatus,
   SchuleMitLeitung,
@@ -54,6 +60,7 @@ export function SchuleDetail({
   canEditSchulart,
   leitungen,
   standorte,
+  kontakte,
 }: {
   schule: SchuleMitLeitung;
   anrufe: AnrufMitLeitung[];
@@ -62,6 +69,7 @@ export function SchuleDetail({
   canEditSchulart: boolean;
   leitungen: Pick<Leitung, "id" | "name" | "kuerzel" | "farbe">[];
   standorte: Standort[];
+  kontakte: Kontakt[];
 }) {
   const router = useRouter();
   const admin = me.rolle === "admin";
@@ -78,6 +86,47 @@ export function SchuleDetail({
   const [zustaendig, setZustaendig] = useState(schule.zustaendig ?? "");
   const [standort, setStandort] = useState(schule.standort_id ?? "");
   const [saving, setSaving] = useState(false);
+
+  // Editierbare Kontakt-/Stammdaten (Berechtigung wie Schulart/Status).
+  const [kd, setKd] = useState({
+    ansprechpartner: schule.ansprechpartner ?? "",
+    rolle_ap: schule.rolle_ap ?? "",
+    tel: schule.tel ?? "",
+    mail: schule.mail ?? "",
+    homepage: schule.homepage ?? "",
+    adresse: schule.adresse ?? "",
+  });
+  const [savingKd, setSavingKd] = useState(false);
+  const kdDirty =
+    kd.ansprechpartner !== (schule.ansprechpartner ?? "") ||
+    kd.rolle_ap !== (schule.rolle_ap ?? "") ||
+    kd.tel !== (schule.tel ?? "") ||
+    kd.mail !== (schule.mail ?? "") ||
+    kd.homepage !== (schule.homepage ?? "") ||
+    kd.adresse !== (schule.adresse ?? "");
+
+  const setKdField = (k: keyof typeof kd) => (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => setKd((p) => ({ ...p, [k]: e.target.value }));
+
+  async function saveKontaktdaten() {
+    setSavingKd(true);
+    const res = await updateKontaktdaten(schule.id, {
+      ansprechpartner: kd.ansprechpartner,
+      rolle_ap: kd.rolle_ap,
+      tel: kd.tel,
+      mail: kd.mail,
+      homepage: kd.homepage,
+      adresse: kd.adresse,
+    });
+    setSavingKd(false);
+    if (!res.ok) {
+      toast.error("Speichern fehlgeschlagen", { description: res.error });
+      return;
+    }
+    toast.success("Kontaktdaten gespeichert");
+    router.refresh();
+  }
 
   async function changeStatus(v: SchulStatus) {
     const prev = statusVal;
@@ -208,60 +257,91 @@ export function SchuleDetail({
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Kontakt</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-2 text-sm sm:grid-cols-2">
-          <InfoRow icon={User} label="Ansprechpartner">
-            {[schule.ansprechpartner, schule.rolle_ap]
-              .filter(Boolean)
-              .join(" · ") || "—"}
-          </InfoRow>
-          <InfoRow icon={Phone} label="Telefon">
-            {schule.tel ? (
-              <a className="text-primary hover:underline" href={`tel:${schule.tel}`}>
-                {schule.tel}
-              </a>
-            ) : (
-              "—"
-            )}
-          </InfoRow>
-          <InfoRow icon={Mail} label="E-Mail">
-            {schule.mail ? (
-              <a
-                className="text-primary hover:underline"
-                href={`mailto:${schule.mail}`}
-              >
-                {schule.mail}
-              </a>
-            ) : (
-              "—"
-            )}
-          </InfoRow>
-          <InfoRow icon={MapPin} label="Adresse">
-            {[schule.adresse, schule.stadt, schule.bezirk]
-              .filter(Boolean)
-              .join(", ") || "—"}
-          </InfoRow>
-          {schule.homepage && (
-            <InfoRow icon={ExternalLink} label="Homepage">
-              <a
-                className="text-primary hover:underline"
-                href={
-                  schule.homepage.startsWith("http")
-                    ? schule.homepage
-                    : `https://${schule.homepage}`
-                }
-                target="_blank"
-                rel="noreferrer"
-              >
-                {schule.homepage}
-              </a>
-            </InfoRow>
+        <CardContent className="space-y-4 text-sm">
+          {canEditSchulart ? (
+            <>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="kd-ap">Ansprechpartner</Label>
+                  <Input id="kd-ap" value={kd.ansprechpartner} onChange={setKdField("ansprechpartner")} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="kd-rolle">Rolle / Funktion</Label>
+                  <Input id="kd-rolle" value={kd.rolle_ap} onChange={setKdField("rolle_ap")} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="kd-tel">Telefon</Label>
+                  <Input id="kd-tel" value={kd.tel} onChange={setKdField("tel")} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="kd-mail">E-Mail</Label>
+                  <Input id="kd-mail" type="email" value={kd.mail} onChange={setKdField("mail")} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="kd-home">Homepage</Label>
+                  <Input id="kd-home" value={kd.homepage} onChange={setKdField("homepage")} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="kd-adr">Adresse</Label>
+                  <Input id="kd-adr" value={kd.adresse} onChange={setKdField("adresse")} />
+                </div>
+              </div>
+              {(schule.stadt || schule.bezirk) && (
+                <p className="text-xs text-muted-foreground">
+                  Ort: {[schule.stadt, schule.bezirk].filter(Boolean).join(", ")}
+                </p>
+              )}
+              <Button onClick={saveKontaktdaten} disabled={!kdDirty || savingKd} size="sm">
+                {savingKd && <Loader2 className="mr-2 size-4 animate-spin" />}
+                Kontaktdaten speichern
+              </Button>
+            </>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2">
+              <InfoRow icon={User} label="Ansprechpartner">
+                {[schule.ansprechpartner, schule.rolle_ap].filter(Boolean).join(" · ") || "—"}
+              </InfoRow>
+              <InfoRow icon={Phone} label="Telefon">
+                {schule.tel ? (
+                  <a className="text-primary hover:underline" href={`tel:${schule.tel}`}>{schule.tel}</a>
+                ) : "—"}
+              </InfoRow>
+              <InfoRow icon={Mail} label="E-Mail">
+                {schule.mail ? (
+                  <a className="text-primary hover:underline" href={`mailto:${schule.mail}`}>{schule.mail}</a>
+                ) : "—"}
+              </InfoRow>
+              <InfoRow icon={MapPin} label="Adresse">
+                {[schule.adresse, schule.stadt, schule.bezirk].filter(Boolean).join(", ") || "—"}
+              </InfoRow>
+              {schule.homepage && (
+                <InfoRow icon={ExternalLink} label="Homepage">
+                  <a
+                    className="text-primary hover:underline"
+                    href={schule.homepage.startsWith("http") ? schule.homepage : `https://${schule.homepage}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {schule.homepage}
+                  </a>
+                </InfoRow>
+              )}
+            </div>
           )}
+
           {schule.notiz_original && (
-            <div className="sm:col-span-2">
+            <div>
               <p className="text-xs text-muted-foreground">Ursprungsnotiz</p>
               <p className="whitespace-pre-wrap">{schule.notiz_original}</p>
             </div>
           )}
+
+          <Separator />
+          <KontakteSection
+            schuleId={schule.id}
+            kontakte={kontakte}
+            editable={canEditSchulart}
+          />
         </CardContent>
       </Card>
 

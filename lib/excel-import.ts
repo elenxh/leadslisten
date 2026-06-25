@@ -13,12 +13,14 @@ export interface RawSchule {
   mail: string | null;
   tel: string | null;
   notiz: string | null;
-  erstkontakt: string | null; // ISO date (YYYY-MM-DD) aus Spalte J
-  status: string | null; // Spalte K
+  erstkontakt: string | null; // ISO date – Spalte "Erstkontakt am"
+  wiedervorlage: string | null; // ISO date – Spalte "Wiedervorlage am"
+  status: string | null; // Spalte "Status" (wörtlich)
   typ: "schule" | "traeger"; // aus Schulart/Sheet abgeleitet
 }
 
-// Erlaubte Status-Werte (Spalte K); alles andere -> null (Default 'Neu').
+// Die 9 gültigen Status-Werte. Die Datei enthält bereits exakt diese Werte;
+// es wird NICHT normalisiert, nur wörtlich validiert.
 const STATUS_VALUES = [
   "Neu",
   "Nicht erreichbar",
@@ -62,30 +64,13 @@ function parseDateCell(v: unknown): string | null {
   return null;
 }
 
-// Mappt den Status-Text aus Spalte K auf einen der 7 erlaubten Werte.
-// Tolerant ggü. Schreibweisen/Varianten; unbekannt -> null (Default 'Neu').
-function normalizeStatus(v: string | null): string | null {
+// Übernimmt den Status WÖRTLICH: exakter (case-insensitiver) Abgleich gegen
+// die 9 gültigen Werte. Keine Umdeutung. Unbekannt/leer -> null (-> 'Neu').
+function literalStatus(v: string | null): string | null {
   if (!v) return null;
-  const s = v.trim().toLowerCase();
-  if (!s) return null;
-
-  // exakte (case-insensitive) Treffer zuerst
-  const exact = STATUS_VALUES.find((x) => x.toLowerCase() === s);
-  if (exact) return exact;
-
-  if (s.includes("nicht erreich")) return "Nicht erreichbar";
-  if (s.includes("dokument") || s.includes("konzept") || s.includes("verschickt") || s.includes("weitergeleitet"))
-    return "Dokumente verschickt";
-  if (s.includes("kennenlernen") || s.includes("persönlich") || s.includes("persoenlich"))
-    return "Persönliches Kennenlernen";
-  if (s.includes("kooperation") || s === "koop") return "Kooperationsabschluss";
-  if (s.includes("anderer anbieter") || s === "anbieter")
-    return "Anderer Anbieter";
-  if (s.includes("kein interesse") || s === "kein") return "Kein Interesse";
-  if (s.includes("wiedervorlage") || s === "wv") return "Wiedervorlage Anruf";
-  if (s.includes("erstkontakt")) return "Erstkontakt";
-  if (s === "neu") return "Neu";
-  return null;
+  const t = v.trim();
+  if (!t) return null;
+  return STATUS_VALUES.find((x) => x.toLowerCase() === t.toLowerCase()) ?? null;
 }
 
 export interface ParsedSheet {
@@ -109,54 +94,53 @@ function cell(row: unknown[], idx: number): string | null {
   return s.length ? s : null;
 }
 
-// Standardpositionen (0-basiert): J = Erstkontakt (9), K = Status (10).
+// Standardpositionen (0-basiert), falls keine Kopfzeile erkannt wird:
+// J = Erstkontakt (9), K = Wiedervorlage (10), L = Status (11).
 const ERSTKONTAKT_FALLBACK = 9;
-const STATUS_FALLBACK = 10;
+const WIEDERVORLAGE_FALLBACK = 10;
+const STATUS_FALLBACK = 11;
 
-// Erkennt die Spalten für Erstkontakt + Status. Es wird die KOPFZEILE gesucht,
-// die "erstkontakt" und/oder "status" enthält, und beide Spalten aus DERSELBEN
-// Zeile gelesen – so kann ein zufälliges "Status" in einer Titelzeile nicht die
-// falsche Spalte erzwingen. Ohne Treffer: feste Positionen J/K.
+// Erkennt die Spalten für Erstkontakt, Wiedervorlage und Status anhand der
+// KOPFZEILE (die Zeile, die "status" und zusätzlich "erstkontakt"/"wiedervorlage"
+// enthält). So zählt die Reihenfolge in der Datei, nicht eine feste Position.
+// Ohne Treffer: feste Standardpositionen.
 function detectColumns(rows: unknown[][]): {
   erstkontaktCol: number;
+  wiedervorlageCol: number;
   statusCol: number;
 } {
-  let partial: { erstkontaktCol: number; statusCol: number } | null = null;
-
   for (let i = 0; i < Math.min(8, rows.length); i++) {
     const r = rows[i] ?? [];
     let ek = -1;
+    let wv = -1;
     let st = -1;
     for (let c = 0; c < r.length; c++) {
       const v = r[c];
       if (v == null) continue;
       const t = String(v).trim().toLowerCase();
       if (ek < 0 && t.includes("erstkontakt")) ek = c;
+      if (wv < 0 && t.includes("wiedervorlage")) wv = c;
       if (st < 0 && /^status\b/.test(t)) st = c;
     }
-    if (ek >= 0 && st >= 0) {
-      return { erstkontaktCol: ek, statusCol: st }; // beide in einer Zeile -> ideal
-    }
-    if (!partial && (ek >= 0 || st >= 0)) {
-      partial = {
+    // Diese Zeile ist die echte Kopfzeile, wenn "status" + ein Datums-Header da sind.
+    if (st >= 0 && (ek >= 0 || wv >= 0)) {
+      return {
         erstkontaktCol: ek >= 0 ? ek : ERSTKONTAKT_FALLBACK,
-        statusCol: st >= 0 ? st : STATUS_FALLBACK,
+        wiedervorlageCol: wv >= 0 ? wv : -1,
+        statusCol: st,
       };
     }
   }
 
-  return (
-    partial ?? {
-      erstkontaktCol: ERSTKONTAKT_FALLBACK,
-      statusCol: STATUS_FALLBACK,
-    }
-  );
+  return {
+    erstkontaktCol: ERSTKONTAKT_FALLBACK,
+    wiedervorlageCol: WIEDERVORLAGE_FALLBACK,
+    statusCol: STATUS_FALLBACK,
+  };
 }
 
 function parseSheet(rows: unknown[][], sheetName: string): RawSchule[] {
-  // Spalten J/K können je nach Datei leicht verschoben sein -> per Header
-  // erkennen, sonst auf die Standardpositionen (9/10) zurückfallen.
-  const { erstkontaktCol, statusCol } = detectColumns(rows);
+  const { erstkontaktCol, wiedervorlageCol, statusCol } = detectColumns(rows);
 
   const out: RawSchule[] = [];
   for (let i = DATA_START_ROW; i < rows.length; i++) {
@@ -175,8 +159,10 @@ function parseSheet(rows: unknown[][], sheetName: string): RawSchule[] {
       mail: cell(row, 6), // G
       tel: cell(row, 7), // H
       notiz: cell(row, 8), // I -> notiz_original
-      erstkontakt: parseDateCell(row[erstkontaktCol]), // J -> erstkontakt_am
-      status: normalizeStatus(cell(row, statusCol)), // K -> status
+      erstkontakt: parseDateCell(row[erstkontaktCol]),
+      wiedervorlage:
+        wiedervorlageCol >= 0 ? parseDateCell(row[wiedervorlageCol]) : null,
+      status: literalStatus(cell(row, statusCol)), // wörtlich
       typ: istTraeger ? "traeger" : "schule",
     });
   }

@@ -26,7 +26,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import {
   parseArrayBuffer,
-  deriveOrtUndRing,
   type ParsedWorkbook,
   type RawSchule,
 } from "@/lib/excel-import";
@@ -243,10 +242,11 @@ export function ImportClient({
             ))}
           </div>
 
-          {/* Erkennungs-Kontrolle für Spalte J/K */}
+          {/* Erkennungs-Kontrolle für die Spalten */}
           <p className="text-xs text-muted-foreground">
             Erkannt aus Datei: {allRows.filter((r) => r.erstkontakt).length} ×
-            Erstkontakt-Datum, {allRows.filter((r) => r.status).length} × Status.
+            Erstkontakt, {allRows.filter((r) => r.wiedervorlage).length} ×
+            Wiedervorlage, {allRows.filter((r) => r.status).length} × Status.
           </p>
 
           {/* Preview-Tabelle (erste 10) */}
@@ -256,32 +256,31 @@ export function ImportClient({
                 <thead className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
                   <tr>
                     <th className="px-3 py-2 font-medium">Schule</th>
-                    <th className="px-3 py-2 font-medium">Stadt</th>
                     <th className="px-3 py-2 font-medium">Schulart</th>
                     <th className="px-3 py-2 font-medium">Erstkontakt</th>
+                    <th className="px-3 py-2 font-medium">Wiedervorlage</th>
                     <th className="px-3 py-2 font-medium">Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {allRows.slice(0, 10).map((r, i) => {
-                    const { stadt } = deriveOrtUndRing(r.bezirk);
-                    return (
-                      <tr key={i} className="border-b last:border-0">
-                        <td className="px-3 py-2">
-                          <div className="font-medium">{r.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {r.bezirk ?? "—"}
-                          </div>
-                        </td>
-                        <td className="px-3 py-2">{stadt ?? "—"}</td>
-                        <td className="px-3 py-2">{r.schulart ?? "—"}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">
-                          {r.erstkontakt ? formatDate(r.erstkontakt) : "—"}
-                        </td>
-                        <td className="px-3 py-2">{r.status ?? "—"}</td>
-                      </tr>
-                    );
-                  })}
+                  {allRows.slice(0, 10).map((r, i) => (
+                    <tr key={i} className="border-b last:border-0">
+                      <td className="px-3 py-2">
+                        <div className="font-medium">{r.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {r.bezirk ?? "—"}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2">{r.schulart ?? "—"}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        {r.erstkontakt ? formatDate(r.erstkontakt) : "—"}
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        {r.wiedervorlage ? formatDate(r.wiedervorlage) : "—"}
+                      </td>
+                      <td className="px-3 py-2">{r.status ?? "—"}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
               {parsed.total > 10 && (
