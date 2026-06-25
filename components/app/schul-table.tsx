@@ -99,6 +99,7 @@ export function SchulTable({
                   <AmpelBadge
                     erstkontakt={s.erstkontakt_am}
                     wiedervorlage={s.wiedervorlage_am}
+                    letzterAnruf={s.letzter_anruf_am}
                   />
                 </div>
               </div>
@@ -123,6 +124,7 @@ export function SchulTable({
                 <AmpelBadge
                   erstkontakt={s.erstkontakt_am}
                   wiedervorlage={s.wiedervorlage_am}
+                  letzterAnruf={s.letzter_anruf_am}
                 />
               </span>
 

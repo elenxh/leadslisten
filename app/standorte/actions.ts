@@ -471,6 +471,78 @@ export async function updateStatus(
   return { ok: true };
 }
 
+export interface AnrufInput {
+  schuleId: string;
+  leitungId: string;
+  datum: string; // YYYY-MM-DD (Datum des Anrufs)
+  status: string; // Ergebnis (einer der 9 Pipeline-Werte)
+  wiedervorlage: string | null; // nächste geplante Wiedervorlage (oder null)
+  notiz: string | null;
+}
+
+/**
+ * Protokolliert einen Anruf: legt einen anrufe-Eintrag an, setzt Status +
+ * Wiedervorlage der Schule, füllt erstkontakt_am falls leer und aktualisiert
+ * letzter_anruf_am (Referenz für die Ampel). Berechtigung wie Bearbeiten.
+ */
+export async function protokolliereAnruf(
+  input: AnrufInput,
+): Promise<SimpleResult> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: "Nicht angemeldet." };
+  if (!STATUS_ERLAUBT.includes(input.status)) {
+    return { ok: false, error: "Ungültiger Status." };
+  }
+  const datum = (input.datum || "").slice(0, 10);
+  if (!datum) return { ok: false, error: "Datum ist erforderlich." };
+
+  const ac = adminClientOrError();
+  if (!ac.ok) return ac;
+
+  const perm = await darfSchuleBearbeiten(
+    ac.admin,
+    user.id,
+    user.isAdmin,
+    input.schuleId,
+  );
+  if (!perm.ok) return perm;
+
+  const { data: schule } = await ac.admin
+    .from("schulen")
+    .select("erstkontakt_am, letzter_anruf_am")
+    .eq("id", input.schuleId)
+    .single();
+
+  // Anruf-Eintrag (Mittagszeit, damit das Datum zeitzonen-stabil bleibt).
+  const { error: aErr } = await ac.admin.from("anrufe").insert({
+    schule_id: input.schuleId,
+    leitung_id: input.leitungId,
+    datum: `${datum}T12:00:00`,
+    typ: "telefonat",
+    status_neu: input.status,
+    text: (input.notiz ?? "").trim() || null,
+  });
+  if (aErr) return { ok: false, error: aErr.message };
+
+  const cur = (schule?.letzter_anruf_am as string | null) ?? null;
+  const update: Record<string, unknown> = {
+    status: input.status,
+    wiedervorlage_am: input.wiedervorlage || null,
+    letzter_anruf_am: !cur || datum > cur ? datum : cur,
+  };
+  if (!schule?.erstkontakt_am) update.erstkontakt_am = datum;
+
+  const { error: sErr } = await ac.admin
+    .from("schulen")
+    .update(update)
+    .eq("id", input.schuleId);
+  if (sErr) return { ok: false, error: sErr.message };
+
+  revalidatePath("/dashboard");
+  revalidatePath(`/schule/${input.schuleId}`);
+  return { ok: true };
+}
+
 /** Admin oder betreuende Standort-Leitung löscht eine Schule endgültig. */
 export async function deleteSchule(schuleId: string): Promise<SimpleResult> {
   const user = await currentUser();

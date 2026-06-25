@@ -63,6 +63,7 @@ export interface Schule {
   naechster_anruf: string | null; // ISO date – Altfeld, ersetzt durch wiedervorlage_am
   erstkontakt_am: string | null; // ISO date – fix, einmal gesetzt
   wiedervorlage_am: string | null; // ISO date – kann aktualisiert werden
+  letzter_anruf_am: string | null; // ISO date – jüngster protokollierter Anruf
   akquise_notiz: string | null;
   zustaendig: string | null; // FK -> leitungen.id
   standort_id: string | null; // FK -> standorte.id

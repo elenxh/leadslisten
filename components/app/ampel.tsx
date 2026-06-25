@@ -8,15 +8,17 @@ import { AMPEL_DOT, ampelInfo, ampelLabel } from "@/lib/ampel";
 export function AmpelBadge({
   erstkontakt,
   wiedervorlage,
+  letzterAnruf,
   showText = true,
   className,
 }: {
   erstkontakt: string | null;
   wiedervorlage: string | null;
+  letzterAnruf?: string | null;
   showText?: boolean;
   className?: string;
 }) {
-  const { stufe, tage } = ampelInfo(erstkontakt, wiedervorlage);
+  const { stufe, tage } = ampelInfo(erstkontakt, wiedervorlage, letzterAnruf);
   const label = ampelLabel(tage);
 
   return (

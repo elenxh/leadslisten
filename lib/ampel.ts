@@ -36,12 +36,16 @@ function istPlausibel(iso: string): boolean {
 export function ampelInfo(
   erstkontakt: string | null | undefined,
   wiedervorlage: string | null | undefined,
+  letzterAnruf?: string | null | undefined,
 ): AmpelInfo {
-  // Referenz = das NEUESTE (späteste) Datum, das plausibel und <= heute ist.
+  // Referenz = das NEUESTE (späteste) Datum, das plausibel und <= heute ist,
+  // unter: letztem protokollierten Anruf, Erstkontakt und Wiedervorlage.
   // Zukünftige Wiedervorlagen zählen also nicht; Altdaten vor 2020 auch nicht.
-  const candidates = [dateOnly(erstkontakt), dateOnly(wiedervorlage)].filter(
-    (d): d is string => !!d && istPlausibel(d),
-  );
+  const candidates = [
+    dateOnly(erstkontakt),
+    dateOnly(wiedervorlage),
+    dateOnly(letzterAnruf),
+  ].filter((d): d is string => !!d && istPlausibel(d));
   if (candidates.length === 0) return { stufe: null, tage: null };
 
   // ISO-Datumsstrings sind lexikografisch sortierbar -> Maximum = spätestes.
