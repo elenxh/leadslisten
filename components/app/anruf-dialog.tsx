@@ -168,8 +168,8 @@ export function AnrufDialog({
             </Select>
           </div>
 
-          {(statusNeu === "Wiedervorlage" ||
-            (statusNeu === KEEP && currentStatus === "Wiedervorlage")) && (
+          {(statusNeu === "Wiedervorlage Anruf" ||
+            (statusNeu === KEEP && currentStatus === "Wiedervorlage Anruf")) && (
             <div className="space-y-2">
               <Label htmlFor="wv">Wiedervorlage am</Label>
               <Input

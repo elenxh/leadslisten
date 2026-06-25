@@ -16,11 +16,13 @@ const NEUTRAL_BADGE =
 export const STATUS_LIST: StatusMeta[] = [
   { value: "Neu", label: "Neu", badge: NEUTRAL_BADGE },
   { value: "Nicht erreichbar", label: "Nicht erreichbar", badge: NEUTRAL_BADGE },
-  { value: "Konzept wird weitergeleitet", label: "Konzept wird weitergeleitet", badge: NEUTRAL_BADGE },
-  { value: "Anderer Anbieter", label: "Anderer Anbieter", badge: NEUTRAL_BADGE },
+  { value: "Erstkontakt", label: "Erstkontakt", badge: NEUTRAL_BADGE },
+  { value: "Dokumente verschickt", label: "Dokumente verschickt", badge: NEUTRAL_BADGE },
+  { value: "Persönliches Kennenlernen", label: "Persönliches Kennenlernen", badge: NEUTRAL_BADGE },
+  { value: "Kooperationsabschluss", label: "Kooperationsabschluss", badge: NEUTRAL_BADGE },
+  { value: "Wiedervorlage Anruf", label: "Wiedervorlage Anruf", badge: NEUTRAL_BADGE },
   { value: "Kein Interesse", label: "Kein Interesse", badge: NEUTRAL_BADGE },
-  { value: "Wiedervorlage", label: "Wiedervorlage", badge: NEUTRAL_BADGE },
-  { value: "Kooperation", label: "Kooperation", badge: NEUTRAL_BADGE },
+  { value: "Anderer Anbieter", label: "Anderer Anbieter", badge: NEUTRAL_BADGE },
 ];
 
 const STATUS_MAP = new Map(STATUS_LIST.map((s) => [s.value, s]));

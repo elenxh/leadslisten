@@ -22,11 +22,13 @@ export interface RawSchule {
 const STATUS_VALUES = [
   "Neu",
   "Nicht erreichbar",
-  "Konzept wird weitergeleitet",
-  "Anderer Anbieter",
+  "Erstkontakt",
+  "Dokumente verschickt",
+  "Persönliches Kennenlernen",
+  "Kooperationsabschluss",
+  "Wiedervorlage Anruf",
   "Kein Interesse",
-  "Wiedervorlage",
-  "Kooperation",
+  "Anderer Anbieter",
 ];
 
 function pad(n: number): string {
@@ -72,14 +74,16 @@ function normalizeStatus(v: string | null): string | null {
   if (exact) return exact;
 
   if (s.includes("nicht erreich")) return "Nicht erreichbar";
-  if (s.includes("konzept") || s.includes("weitergeleitet"))
-    return "Konzept wird weitergeleitet";
+  if (s.includes("dokument") || s.includes("konzept") || s.includes("verschickt") || s.includes("weitergeleitet"))
+    return "Dokumente verschickt";
+  if (s.includes("kennenlernen") || s.includes("persönlich") || s.includes("persoenlich"))
+    return "Persönliches Kennenlernen";
+  if (s.includes("kooperation") || s === "koop") return "Kooperationsabschluss";
   if (s.includes("anderer anbieter") || s === "anbieter")
     return "Anderer Anbieter";
   if (s.includes("kein interesse") || s === "kein") return "Kein Interesse";
-  if (s.includes("kooperation") || s === "koop") return "Kooperation";
-  if (s.includes("wiedervorlage") || s === "wv" || s.includes("gespräch") || s.includes("gespraech"))
-    return "Wiedervorlage";
+  if (s.includes("wiedervorlage") || s === "wv") return "Wiedervorlage Anruf";
+  if (s.includes("erstkontakt")) return "Erstkontakt";
   if (s === "neu") return "Neu";
   return null;
 }
@@ -105,28 +109,54 @@ function cell(row: unknown[], idx: number): string | null {
   return s.length ? s : null;
 }
 
-// Sucht in den Kopfzeilen (vor den Daten) die Spalte, deren Text zum Muster
-// passt; sonst Fallback-Index.
-function findColumn(
-  rows: unknown[][],
-  pattern: RegExp,
-  fallback: number,
-): number {
-  for (let i = 0; i < Math.min(DATA_START_ROW + 1, rows.length); i++) {
+// Standardpositionen (0-basiert): J = Erstkontakt (9), K = Status (10).
+const ERSTKONTAKT_FALLBACK = 9;
+const STATUS_FALLBACK = 10;
+
+// Erkennt die Spalten für Erstkontakt + Status. Es wird die KOPFZEILE gesucht,
+// die "erstkontakt" und/oder "status" enthält, und beide Spalten aus DERSELBEN
+// Zeile gelesen – so kann ein zufälliges "Status" in einer Titelzeile nicht die
+// falsche Spalte erzwingen. Ohne Treffer: feste Positionen J/K.
+function detectColumns(rows: unknown[][]): {
+  erstkontaktCol: number;
+  statusCol: number;
+} {
+  let partial: { erstkontaktCol: number; statusCol: number } | null = null;
+
+  for (let i = 0; i < Math.min(8, rows.length); i++) {
     const r = rows[i] ?? [];
+    let ek = -1;
+    let st = -1;
     for (let c = 0; c < r.length; c++) {
       const v = r[c];
-      if (v != null && pattern.test(String(v))) return c;
+      if (v == null) continue;
+      const t = String(v).trim().toLowerCase();
+      if (ek < 0 && t.includes("erstkontakt")) ek = c;
+      if (st < 0 && /^status\b/.test(t)) st = c;
+    }
+    if (ek >= 0 && st >= 0) {
+      return { erstkontaktCol: ek, statusCol: st }; // beide in einer Zeile -> ideal
+    }
+    if (!partial && (ek >= 0 || st >= 0)) {
+      partial = {
+        erstkontaktCol: ek >= 0 ? ek : ERSTKONTAKT_FALLBACK,
+        statusCol: st >= 0 ? st : STATUS_FALLBACK,
+      };
     }
   }
-  return fallback;
+
+  return (
+    partial ?? {
+      erstkontaktCol: ERSTKONTAKT_FALLBACK,
+      statusCol: STATUS_FALLBACK,
+    }
+  );
 }
 
 function parseSheet(rows: unknown[][], sheetName: string): RawSchule[] {
   // Spalten J/K können je nach Datei leicht verschoben sein -> per Header
   // erkennen, sonst auf die Standardpositionen (9/10) zurückfallen.
-  const erstkontaktCol = findColumn(rows, /erstkontakt/i, 9);
-  const statusCol = findColumn(rows, /^\s*status\b/i, 10);
+  const { erstkontaktCol, statusCol } = detectColumns(rows);
 
   const out: RawSchule[] = [];
   for (let i = DATA_START_ROW; i < rows.length; i++) {
