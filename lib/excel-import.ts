@@ -13,6 +13,58 @@ export interface RawSchule {
   mail: string | null;
   tel: string | null;
   notiz: string | null;
+  erstkontakt: string | null; // ISO date (YYYY-MM-DD) aus Spalte J
+  status: string | null; // Spalte K
+}
+
+// Erlaubte Status-Werte (Spalte K); alles andere -> null (Default 'Neu').
+const STATUS_VALUES = [
+  "Neu",
+  "Nicht erreichbar",
+  "Konzept wird weitergeleitet",
+  "Anderer Anbieter",
+  "Kein Interesse",
+  "Wiedervorlage",
+  "Kooperation",
+];
+
+function pad(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+// Parst eine Datumszelle (Date-Objekt, Excel-Seriennummer oder dd.mm.yyyy)
+// zu einem ISO-Datum (YYYY-MM-DD) oder null.
+function parseDateCell(v: unknown): string | null {
+  if (v == null || v === "") return null;
+  if (v instanceof Date && !Number.isNaN(v.getTime())) {
+    return `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())}`;
+  }
+  if (typeof v === "number" && Number.isFinite(v)) {
+    // Excel-Seriennummer (Basis 1899-12-30).
+    const d = new Date(Math.round((v - 25569) * 86400 * 1000));
+    if (Number.isNaN(d.getTime())) return null;
+    return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+  }
+  const s = String(v).trim();
+  const m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$/);
+  if (m) {
+    const dd = m[1];
+    const mm = m[2];
+    const yy = m[3].length === 2 ? `20${m[3]}` : m[3];
+    return `${yy}-${pad(Number(mm))}-${pad(Number(dd))}`;
+  }
+  // ISO-ähnlich (YYYY-MM-DD...)
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  return null;
+}
+
+function normalizeStatus(v: string | null): string | null {
+  if (!v) return null;
+  const hit = STATUS_VALUES.find(
+    (s) => s.toLowerCase() === v.trim().toLowerCase(),
+  );
+  return hit ?? null;
 }
 
 export interface ParsedSheet {
@@ -25,7 +77,8 @@ export interface ParsedWorkbook {
   total: number;
 }
 
-// Lilly-Format: Daten ab Zeile 4 (Zeile 1–3 = Header/Logo), Spalten A–I.
+// Lilly-Format: Daten ab Zeile 4 (Zeile 1–3 = Header/Logo), Spalten A–K
+// (J = Erstkontakt-Datum, K = Status).
 const DATA_START_ROW = 3; // 0-based index of Excel row 4
 
 function cell(row: unknown[], idx: number): string | null {
@@ -51,6 +104,8 @@ function parseSheet(rows: unknown[][], sheetName: string): RawSchule[] {
       mail: cell(row, 6), // G
       tel: cell(row, 7), // H
       notiz: cell(row, 8), // I -> notiz_original
+      erstkontakt: parseDateCell(row[9]), // J -> erstkontakt_am
+      status: normalizeStatus(cell(row, 10)), // K -> status
     });
   }
   return out;
@@ -73,7 +128,8 @@ export function parseWorkbook(wb: XLSX.WorkBook): ParsedWorkbook {
 }
 
 export function parseArrayBuffer(buf: ArrayBuffer): ParsedWorkbook {
-  const wb = XLSX.read(buf, { type: "array" });
+  // cellDates: Datumszellen kommen als Date-Objekte (für Spalte J).
+  const wb = XLSX.read(buf, { type: "array", cellDates: true });
   return parseWorkbook(wb);
 }
 

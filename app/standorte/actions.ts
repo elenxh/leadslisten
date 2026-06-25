@@ -368,6 +368,47 @@ export async function updateMarkierung(
   return { ok: true };
 }
 
+const STATUS_ERLAUBT = [
+  "Neu",
+  "Nicht erreichbar",
+  "Konzept wird weitergeleitet",
+  "Anderer Anbieter",
+  "Kein Interesse",
+  "Wiedervorlage",
+  "Kooperation",
+];
+
+/**
+ * Setzt den Status einer Schule. Berechtigung wie bei der Schulart:
+ * Admin immer, Leitung nur für Schulen an einem ihr zugeordneten Standort.
+ */
+export async function updateStatus(
+  schuleId: string,
+  status: string,
+): Promise<SimpleResult> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: "Nicht angemeldet." };
+  if (!STATUS_ERLAUBT.includes(status)) {
+    return { ok: false, error: "Ungültiger Status." };
+  }
+
+  const ac = adminClientOrError();
+  if (!ac.ok) return ac;
+
+  const perm = await darfSchuleBearbeiten(ac.admin, user.id, user.isAdmin, schuleId);
+  if (!perm.ok) return perm;
+
+  const { error } = await ac.admin
+    .from("schulen")
+    .update({ status })
+    .eq("id", schuleId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/dashboard");
+  revalidatePath(`/schule/${schuleId}`);
+  return { ok: true };
+}
+
 /**
  * Speichert die Farb-Legende (Bezeichnungen der 5 Farben) eines Standorts.
  * Berechtigung: Admin immer, Leitung nur für eigene Standorte.

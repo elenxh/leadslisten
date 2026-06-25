@@ -34,9 +34,10 @@ import { AnrufDialog } from "@/components/app/anruf-dialog";
 import { createClient } from "@/lib/supabase/client";
 import { STATUS_LIST, anrufTypLabel } from "@/lib/status";
 import { SCHULART_OPTIONS } from "@/lib/schulart";
-import { updateSchulart } from "@/app/standorte/actions";
+import { updateSchulart, updateStatus } from "@/app/standorte/actions";
+import { AmpelBadge } from "@/components/app/ampel";
 import { ringLabel } from "@/lib/berlin-ring";
-import { formatDateTime } from "@/lib/dates";
+import { formatDate, formatDateTime } from "@/lib/dates";
 import type {
   AnrufMitLeitung,
   Leitung,
@@ -65,12 +66,35 @@ export function SchuleDetail({
   const router = useRouter();
   const admin = me.rolle === "admin";
 
-  const [status, setStatus] = useState<SchulStatus>(schule.status);
-  const [wv, setWv] = useState(schule.naechster_anruf?.slice(0, 10) ?? "");
+  // Status: sofortiges Speichern via Server-Action (Standort-Berechtigung).
+  const [statusVal, setStatusVal] = useState<SchulStatus>(schule.status);
+  const [savingStatus, setSavingStatus] = useState(false);
+
+  const [wv, setWv] = useState(schule.wiedervorlage_am?.slice(0, 10) ?? "");
+  const [erstkontakt, setErstkontakt] = useState(
+    schule.erstkontakt_am?.slice(0, 10) ?? "",
+  );
   const [notiz, setNotiz] = useState(schule.akquise_notiz ?? "");
   const [zustaendig, setZustaendig] = useState(schule.zustaendig ?? "");
   const [standort, setStandort] = useState(schule.standort_id ?? "");
   const [saving, setSaving] = useState(false);
+
+  async function changeStatus(v: SchulStatus) {
+    const prev = statusVal;
+    setStatusVal(v);
+    setSavingStatus(true);
+    const res = await updateStatus(schule.id, v);
+    setSavingStatus(false);
+    if (!res.ok) {
+      setStatusVal(prev);
+      toast.error("Status konnte nicht gespeichert werden", {
+        description: res.error,
+      });
+      return;
+    }
+    toast.success("Status aktualisiert");
+    router.refresh();
+  }
 
   // Schulart wird sofort bei Auswahl gespeichert (eigene Server-Action).
   const [schulartVal, setSchulartVal] = useState(schule.schulart ?? "");
@@ -101,9 +125,9 @@ export function SchuleDetail({
   }
 
   const dirty =
-    status !== schule.status ||
-    wv !== (schule.naechster_anruf?.slice(0, 10) ?? "") ||
+    wv !== (schule.wiedervorlage_am?.slice(0, 10) ?? "") ||
     notiz !== (schule.akquise_notiz ?? "") ||
+    (admin && erstkontakt !== (schule.erstkontakt_am?.slice(0, 10) ?? "")) ||
     (admin && zustaendig !== (schule.zustaendig ?? "")) ||
     (admin && standort !== (schule.standort_id ?? ""));
 
@@ -111,11 +135,11 @@ export function SchuleDetail({
     setSaving(true);
     const supabase = createClient();
     const update: Record<string, unknown> = {
-      status,
-      naechster_anruf: wv || null,
+      wiedervorlage_am: wv || null,
       akquise_notiz: notiz.trim() || null,
     };
     if (admin) {
+      update.erstkontakt_am = erstkontakt || null;
       update.zustaendig = zustaendig || null;
       update.standort_id = standort || null;
     }
@@ -164,7 +188,11 @@ export function SchuleDetail({
             </p>
           </div>
           <div className="flex flex-col items-end gap-1">
-            <StatusBadge status={schule.status} />
+            <StatusBadge status={statusVal} />
+            <AmpelBadge
+              erstkontakt={schule.erstkontakt_am}
+              wiedervorlage={schule.wiedervorlage_am}
+            />
             {schule.leitung && (
               <span className="flex items-center gap-1 text-xs text-muted-foreground">
                 <LeitungAvatar leitung={schule.leitung} className="size-5" />
@@ -245,20 +273,27 @@ export function SchuleDetail({
             <AnrufDialog
               schuleId={schule.id}
               leitungId={me.id}
-              currentStatus={status}
+              currentStatus={statusVal}
             />
           )}
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Status</Label>
+          {/* Status – sofort speichern; nur Filter-Info, keine Farbe.
+              Editierbar für Admin + zuständige Standort-Leitung. */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              Status
+              {savingStatus && (
+                <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+              )}
+            </Label>
+            {canEditSchulart ? (
               <Select
-                value={status}
-                onValueChange={(v) => setStatus(v as SchulStatus)}
-                disabled={!canEdit}
+                value={statusVal}
+                onValueChange={(v) => changeStatus(v as SchulStatus)}
+                disabled={savingStatus}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full sm:max-w-xs">
                   <SelectValue>
                     {(v: string) =>
                       STATUS_LIST.find((s) => s.value === v)?.label ?? v
@@ -273,20 +308,42 @@ export function SchuleDetail({
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            {(status === "wv" || wv) && (
-              <div className="space-y-2">
-                <Label htmlFor="wv-date">Wiedervorlage am</Label>
-                <Input
-                  id="wv-date"
-                  type="date"
-                  value={wv}
-                  onChange={(e) => setWv(e.target.value)}
-                  disabled={!canEdit}
-                />
-              </div>
+            ) : (
+              <StatusBadge status={statusVal} />
             )}
+          </div>
+
+          {/* Erstkontakt + Wiedervorlage. Erstkontakt ist fix (nur Admin
+              änderbar); Wiedervorlage kann die Leitung setzen -> Ampel zählt
+              ab dann neu. */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="erstkontakt">Erstkontakt am</Label>
+              {admin ? (
+                <Input
+                  id="erstkontakt"
+                  type="date"
+                  value={erstkontakt}
+                  onChange={(e) => setErstkontakt(e.target.value)}
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  {schule.erstkontakt_am
+                    ? formatDate(schule.erstkontakt_am)
+                    : "—"}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="wv-date">Wiedervorlage am</Label>
+              <Input
+                id="wv-date"
+                type="date"
+                value={wv}
+                onChange={(e) => setWv(e.target.value)}
+                disabled={!canEdit}
+              />
+            </div>
           </div>
 
           {/* Schulart – editierbar für Admin + zuständige Standort-Leitung;
