@@ -13,12 +13,22 @@ import {
   Mail,
   MapPin,
   Phone,
+  Trash2,
   User,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -37,6 +47,7 @@ import { createClient } from "@/lib/supabase/client";
 import { STATUS_LIST, anrufTypLabel } from "@/lib/status";
 import { SCHULART_OPTIONS } from "@/lib/schulart";
 import {
+  deleteSchule,
   updateKontaktdaten,
   updateSchulart,
   updateStatus,
@@ -76,6 +87,21 @@ export function SchuleDetail({
 }) {
   const router = useRouter();
   const admin = me.rolle === "admin";
+
+  const [deleting, setDeleting] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  async function loeschen() {
+    setDeleting(true);
+    const res = await deleteSchule(schule.id);
+    if (!res.ok) {
+      setDeleting(false);
+      toast.error("Löschen fehlgeschlagen", { description: res.error });
+      return;
+    }
+    toast.success("Schule gelöscht");
+    router.push("/dashboard");
+  }
 
   // Vor/Zurück-Navigation gemäß der zuletzt im Dashboard gezeigten Reihenfolge.
   const [nav, setNav] = useState<{
@@ -633,6 +659,52 @@ export function SchuleDetail({
           )}
         </CardContent>
       </Card>
+
+      {/* Löschen – Admin + betreuende Standort-Leitung */}
+      {(admin || canEditSchulart) && (
+        <div className="flex justify-end pt-2">
+          <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+            <DialogTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                />
+              }
+            >
+              <Trash2 className="mr-1.5 size-4" />
+              Schule löschen
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Schule wirklich löschen?</DialogTitle>
+                <DialogDescription>
+                  „{schule.name}“ wird endgültig gelöscht – inklusive Verlauf und
+                  Ansprechpartner. Das kann nicht rückgängig gemacht werden.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setDeleteOpen(false)}
+                  disabled={deleting}
+                >
+                  Abbrechen
+                </Button>
+                <Button
+                  onClick={loeschen}
+                  disabled={deleting}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {deleting && <Loader2 className="mr-2 size-4 animate-spin" />}
+                  Endgültig löschen
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      )}
     </div>
   );
 }
