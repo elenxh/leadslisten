@@ -8,6 +8,7 @@ import {
   Loader2,
   MapPin,
   MapPinned,
+  Pencil,
   Plus,
   X,
 } from "lucide-react";
@@ -33,6 +34,7 @@ import {
   createStandort,
   proposeStandort,
   rejectStandort,
+  renameStandort,
 } from "@/app/standorte/actions";
 import type { Leitung, Standort, StandortMitVorschlag } from "@/lib/types";
 
@@ -83,16 +85,26 @@ export function StandortSidebar({
               : "Dir ist noch kein Standort zugewiesen."}
           </p>
         ) : (
-          data.standorte.map((s) => (
-            <SidebarItem
-              key={s.id}
-              label={s.name}
-              icon={<MapPin className="size-4" />}
-              count={data.counts[s.id] ?? 0}
-              active={value === s.id}
-              onClick={() => onChange(s.id)}
-            />
-          ))
+          data.standorte.map((s) =>
+            isAdmin ? (
+              <StandortNavRow
+                key={s.id}
+                standort={s}
+                count={data.counts[s.id] ?? 0}
+                active={value === s.id}
+                onClick={() => onChange(s.id)}
+              />
+            ) : (
+              <SidebarItem
+                key={s.id}
+                label={s.name}
+                icon={<MapPin className="size-4" />}
+                count={data.counts[s.id] ?? 0}
+                active={value === s.id}
+                onClick={() => onChange(s.id)}
+              />
+            ),
+          )
         )}
       </div>
 
@@ -163,6 +175,129 @@ function SidebarItem({
         {count}
       </span>
     </button>
+  );
+}
+
+// --- Standort-Zeile mit Umbenennen (Admin) ----------------------------
+function StandortNavRow({
+  standort,
+  count,
+  active,
+  onClick,
+}: {
+  standort: Standort;
+  count: number;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <div className="group flex items-center gap-0.5">
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          "flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
+          active
+            ? "bg-primary/10 font-medium text-primary"
+            : "hover:bg-muted text-foreground",
+        )}
+      >
+        <MapPin className="size-4 shrink-0" />
+        <span className="min-w-0 flex-1 truncate">{standort.name}</span>
+        <span
+          className={cn(
+            "shrink-0 rounded-full px-1.5 text-xs tabular-nums",
+            active ? "bg-primary/15 text-primary" : "text-muted-foreground",
+          )}
+        >
+          {count}
+        </span>
+      </button>
+      <EditStandortDialog standort={standort} />
+    </div>
+  );
+}
+
+function EditStandortDialog({ standort }: { standort: Standort }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(standort.name);
+  const [pending, startTransition] = useTransition();
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    const clean = name.trim();
+    if (!clean) {
+      toast.error("Name darf nicht leer sein.");
+      return;
+    }
+    startTransition(async () => {
+      const res = await renameStandort(standort.id, clean);
+      if (!res.ok) {
+        toast.error("Umbenennen fehlgeschlagen", { description: res.error });
+        return;
+      }
+      toast.success("Standort umbenannt");
+      setOpen(false);
+      router.refresh();
+    });
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (o) setName(standort.name); // aktuellen Namen übernehmen
+      }}
+    >
+      <DialogTrigger
+        render={
+          <button
+            type="button"
+            aria-label={`${standort.name} umbenennen`}
+            title="Umbenennen"
+            className="shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          />
+        }
+      >
+        <Pencil className="size-3.5" />
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <form onSubmit={submit}>
+          <DialogHeader>
+            <DialogTitle>Standort umbenennen</DialogTitle>
+            <DialogDescription>
+              Der Name wird überall in der App aktualisiert.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-3">
+            <Label htmlFor={`rename-${standort.id}`}>Name</Label>
+            <Input
+              id={`rename-${standort.id}`}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+              disabled={pending}
+            >
+              Abbrechen
+            </Button>
+            <Button type="submit" disabled={pending || !name.trim()}>
+              {pending && <Loader2 className="mr-2 size-4 animate-spin" />}
+              Speichern
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

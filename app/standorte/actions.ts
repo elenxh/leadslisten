@@ -129,6 +129,32 @@ export async function approveStandort(
   return { ok: true };
 }
 
+/** Admin benennt einen Standort um. */
+export async function renameStandort(
+  id: string,
+  name: string,
+): Promise<SimpleResult> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: "Nicht angemeldet." };
+  if (!user.isAdmin) return { ok: false, error: "Keine Berechtigung." };
+
+  const clean = name.trim();
+  if (!clean) return { ok: false, error: "Name darf nicht leer sein." };
+
+  const ac = adminClientOrError();
+  if (!ac.ok) return ac;
+
+  const { error } = await ac.admin
+    .from("standorte")
+    .update({ name: clean })
+    .eq("id", id);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/dashboard");
+  revalidatePath("/admin/leitungen");
+  return { ok: true };
+}
+
 /** Admin lehnt einen vorgeschlagenen Standort ab (löscht ihn). */
 export async function rejectStandort(id: string): Promise<SimpleResult> {
   const user = await currentUser();
