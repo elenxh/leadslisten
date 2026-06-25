@@ -60,6 +60,19 @@ export default async function SchulePage({
   const schuleTyped = schule as unknown as SchuleMitLeitung;
   const canEdit = isAdmin(me) || schuleTyped.zustaendig === me.id;
 
+  // Schulart darf eine Leitung nur ändern, wenn die Schule zu einem ihrer
+  // betreuten Standorte gehört (Admin immer).
+  let canEditSchulart = isAdmin(me);
+  if (!canEditSchulart && schuleTyped.standort_id) {
+    const { data: rel } = await supabase
+      .from("leitung_standort")
+      .select("standort_id")
+      .eq("leitung_id", me.id)
+      .eq("standort_id", schuleTyped.standort_id)
+      .maybeSingle();
+    canEditSchulart = !!rel;
+  }
+
   return (
     <>
       <AppHeader leitung={me} />
@@ -68,6 +81,7 @@ export default async function SchulePage({
         anrufe={(anrufeData ?? []) as unknown as AnrufMitLeitung[]}
         me={me}
         canEdit={canEdit}
+        canEditSchulart={canEditSchulart}
         leitungen={leitungen}
         standorte={standorte}
       />
