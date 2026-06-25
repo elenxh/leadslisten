@@ -5,6 +5,7 @@ import { isAdmin, requireLeitung } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type {
   AnrufMitLeitung,
+  Kontakt,
   Leitung,
   SchuleMitLeitung,
   Standort,
@@ -36,6 +37,12 @@ export default async function SchulePage({
     .select("*, leitung:leitung_id(id, name, kuerzel, farbe)")
     .eq("schule_id", params.id)
     .order("datum", { ascending: false });
+
+  const { data: kontakteData } = await supabase
+    .from("kontakte")
+    .select("*")
+    .eq("schule_id", params.id)
+    .order("created_at", { ascending: true });
 
   // Admins can reassign — load the active Leitungen and Standorte for the pickers.
   let leitungen: Pick<Leitung, "id" | "name" | "kuerzel" | "farbe">[] = [];
@@ -84,6 +91,7 @@ export default async function SchulePage({
         canEditSchulart={canEditSchulart}
         leitungen={leitungen}
         standorte={standorte}
+        kontakte={(kontakteData ?? []) as Kontakt[]}
       />
     </>
   );
