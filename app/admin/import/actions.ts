@@ -129,7 +129,9 @@ export async function importSchulen(
       toInsert.push({
         name: row.name.trim(),
         ...stammdaten(row),
-        status: "neu",
+        status: row.status || "Neu", // Spalte K, sonst Default
+        erstkontakt_am: row.erstkontakt, // Spalte J (dd.mm.yyyy)
+        // wiedervorlage_am bleibt beim Import leer
         zustaendig: payload.zustaendigId || null,
         standort_id: standortId,
       });

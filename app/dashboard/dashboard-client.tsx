@@ -177,10 +177,10 @@ export function DashboardClient({
     return {
       mine: statScope.length,
       faellig: statScope.filter(
-        (s) => isDueToday(s.naechster_anruf) || isOverdue(s.naechster_anruf),
+        (s) => isDueToday(s.wiedervorlage_am) || isOverdue(s.wiedervorlage_am),
       ).length,
-      gespraech: statScope.filter((s) => s.status === "gespraech").length,
-      koop: statScope.filter((s) => s.status === "koop").length,
+      wiedervorlage: statScope.filter((s) => s.status === "Wiedervorlage").length,
+      koop: statScope.filter((s) => s.status === "Kooperation").length,
     };
   }, [statScope]);
 
@@ -229,12 +229,12 @@ export function DashboardClient({
         return mine;
       case "faellig":
         return schulen.filter(
-          (s) => isDueToday(s.naechster_anruf) || isOverdue(s.naechster_anruf),
+          (s) => isDueToday(s.wiedervorlage_am) || isOverdue(s.wiedervorlage_am),
         );
       case "woche":
-        return schulen.filter((s) => isDueThisWeek(s.naechster_anruf));
+        return schulen.filter((s) => isDueThisWeek(s.wiedervorlage_am));
       case "koop":
-        return schulen.filter((s) => s.status === "koop");
+        return schulen.filter((s) => s.status === "Kooperation");
       case "alle":
       default:
         return schulen;
@@ -266,8 +266,8 @@ export function DashboardClient({
       })
       .sort((a, b) => {
         // Overdue/today first, then by next-call date, then name.
-        const da = a.naechster_anruf ?? "9999";
-        const db = b.naechster_anruf ?? "9999";
+        const da = a.wiedervorlage_am ?? "9999";
+        const db = b.wiedervorlage_am ?? "9999";
         if (da !== db) return da < db ? -1 : 1;
         return a.name.localeCompare(b.name, "de");
       });
@@ -389,10 +389,16 @@ export function DashboardClient({
             onClick={() => setTab("faellig")}
           />
           <StatCard
-            label="In Gespräch"
-            value={stats.gespraech}
+            label="Wiedervorlage"
+            value={stats.wiedervorlage}
             icon={MessagesSquare}
             accent="bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-200"
+            active={statusFilter === "Wiedervorlage"}
+            onClick={() =>
+              setStatusFilter((cur) =>
+                cur === "Wiedervorlage" ? "all" : "Wiedervorlage",
+              )
+            }
           />
           <StatCard
             label="Kooperationen"

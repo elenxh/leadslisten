@@ -94,7 +94,7 @@ export function ImportClient({
       const wb = parseArrayBuffer(buf);
       if (wb.total === 0) {
         setParseError(
-          "Keine Schulen erkannt. Erwartet: Daten ab Zeile 4, Spalten A–I.",
+          "Keine Schulen erkannt. Erwartet: Daten ab Zeile 4, Spalten A–K.",
         );
         return;
       }
@@ -180,7 +180,8 @@ export function ImportClient({
       <div>
         <h1 className="text-xl font-semibold">Schulen importieren</h1>
         <p className="text-sm text-muted-foreground">
-          Excel im Lilly-Format (.xlsx). Daten ab Zeile 4, Spalten A–I; mehrere
+          Excel im Lilly-Format (.xlsx). Daten ab Zeile 4, Spalten A–K (J =
+          Erstkontakt, K = Status); mehrere
           Sheets je Schulart werden zusammengeführt.
         </p>
       </div>

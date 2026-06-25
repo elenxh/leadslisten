@@ -7,14 +7,20 @@ export interface StatusMeta {
   badge: string;
 }
 
+// Einheitliches, NEUTRALES Styling für alle Werte (keine Statusfarben –
+// die einzige Farbcodierung in der App ist die Tage-Ampel). Der Status dient
+// nur der Information und dem Filtern.
+const NEUTRAL_BADGE =
+  "bg-muted text-muted-foreground dark:bg-muted dark:text-muted-foreground";
+
 export const STATUS_LIST: StatusMeta[] = [
-  { value: "neu", label: "Neu", badge: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200" },
-  { value: "versucht", label: "Versucht", badge: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200" },
-  { value: "wv", label: "Wiedervorlage", badge: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200" },
-  { value: "gespraech", label: "In Gespräch", badge: "bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-200" },
-  { value: "koop", label: "Kooperation", badge: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200" },
-  { value: "kein", label: "Kein Interesse", badge: "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200" },
-  { value: "anbieter", label: "Anderer Anbieter", badge: "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300" },
+  { value: "Neu", label: "Neu", badge: NEUTRAL_BADGE },
+  { value: "Nicht erreichbar", label: "Nicht erreichbar", badge: NEUTRAL_BADGE },
+  { value: "Konzept wird weitergeleitet", label: "Konzept wird weitergeleitet", badge: NEUTRAL_BADGE },
+  { value: "Anderer Anbieter", label: "Anderer Anbieter", badge: NEUTRAL_BADGE },
+  { value: "Kein Interesse", label: "Kein Interesse", badge: NEUTRAL_BADGE },
+  { value: "Wiedervorlage", label: "Wiedervorlage", badge: NEUTRAL_BADGE },
+  { value: "Kooperation", label: "Kooperation", badge: NEUTRAL_BADGE },
 ];
 
 const STATUS_MAP = new Map(STATUS_LIST.map((s) => [s.value, s]));

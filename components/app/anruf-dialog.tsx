@@ -83,7 +83,7 @@ export function AnrufDialog({
     // Apply follow-up changes to the school where chosen.
     const schulUpdate: Record<string, unknown> = {};
     if (newStatus) schulUpdate.status = newStatus;
-    if (wvDatum) schulUpdate.naechster_anruf = wvDatum;
+    if (wvDatum) schulUpdate.wiedervorlage_am = wvDatum;
 
     if (Object.keys(schulUpdate).length > 0) {
       const { error: schulError } = await supabase
@@ -168,8 +168,8 @@ export function AnrufDialog({
             </Select>
           </div>
 
-          {(statusNeu === "wv" ||
-            (statusNeu === KEEP && currentStatus === "wv")) && (
+          {(statusNeu === "Wiedervorlage" ||
+            (statusNeu === KEEP && currentStatus === "Wiedervorlage")) && (
             <div className="space-y-2">
               <Label htmlFor="wv">Wiedervorlage am</Label>
               <Input

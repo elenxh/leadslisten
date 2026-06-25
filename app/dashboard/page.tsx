@@ -27,7 +27,7 @@ export default async function DashboardPage() {
   const { data, error } = await supabase
     .from("schulen")
     .select("*, leitung:zustaendig(id, name, kuerzel, farbe)")
-    .order("naechster_anruf", { ascending: true, nullsFirst: false })
+    .order("wiedervorlage_am", { ascending: true, nullsFirst: false })
     .order("name", { ascending: true });
 
   const schulen = (data ?? []) as unknown as SchuleMitLeitung[];

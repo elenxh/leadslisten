@@ -3,13 +3,13 @@
 export type Rolle = "leitung" | "admin";
 
 export type SchulStatus =
-  | "neu"
-  | "versucht"
-  | "wv"
-  | "gespraech"
-  | "koop"
-  | "kein"
-  | "anbieter";
+  | "Neu"
+  | "Nicht erreichbar"
+  | "Konzept wird weitergeleitet"
+  | "Anderer Anbieter"
+  | "Kein Interesse"
+  | "Wiedervorlage"
+  | "Kooperation";
 
 export type AnrufTyp = "telefonat" | "mail" | "vor_ort" | "sonstiges";
 
@@ -56,7 +56,9 @@ export interface Schule {
   tel: string | null;
   notiz_original: string | null;
   status: SchulStatus;
-  naechster_anruf: string | null; // ISO date (YYYY-MM-DD)
+  naechster_anruf: string | null; // ISO date – Altfeld, ersetzt durch wiedervorlage_am
+  erstkontakt_am: string | null; // ISO date – fix, einmal gesetzt
+  wiedervorlage_am: string | null; // ISO date – kann aktualisiert werden
   akquise_notiz: string | null;
   zustaendig: string | null; // FK -> leitungen.id
   standort_id: string | null; // FK -> standorte.id
