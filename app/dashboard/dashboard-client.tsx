@@ -89,6 +89,7 @@ const VIEW_STORAGE_KEY = "leadslisten:schul-view";
 const ERLEDIGT_STATUS: readonly string[] = [
   "Kooperationsabschluss",
   "Kein Interesse",
+  "Anderer Anbieter",
 ];
 const istErledigt = (s: SchuleMitLeitung) =>
   ERLEDIGT_STATUS.includes(s.status);
