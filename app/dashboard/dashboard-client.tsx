@@ -61,6 +61,7 @@ import {
 } from "@/lib/schulart";
 import { RING_OPTIONS, ringLabel } from "@/lib/berlin-ring";
 import { isDueThisWeek, isDueToday, isOverdue } from "@/lib/dates";
+import { ampelInfo } from "@/lib/ampel";
 import type {
   FarbLegende,
   Leitung,
@@ -95,6 +96,46 @@ const istErledigt = (s: SchuleMitLeitung) =>
 const ortVon = (s: SchuleMitLeitung): string =>
   (s.bezirk ?? s.stadt ?? "").trim();
 
+type SortKey = "kontakt_alt" | "kontakt_neu" | "name" | "bezirk";
+
+const SORT_OPTIONS: { value: SortKey; label: string }[] = [
+  { value: "kontakt_alt", label: "Letzter Kontakt: älteste zuerst" },
+  { value: "kontakt_neu", label: "Letzter Kontakt: neueste zuerst" },
+  { value: "name", label: "Name A–Z" },
+  { value: "bezirk", label: "Bezirk A–Z" },
+];
+
+// Vergleicht zwei Schulen anhand der gewählten Sortierung. "Letzter Kontakt"
+// nutzt dasselbe Referenzdatum wie die Ampel (tage seit max. gültigem Datum);
+// "kein Kontakt" (tage null) kommt immer ans Ende.
+function compareSchulen(
+  a: SchuleMitLeitung,
+  b: SchuleMitLeitung,
+  sortBy: SortKey,
+): number {
+  const byName = () => a.name.localeCompare(b.name, "de");
+
+  if (sortBy === "name") return byName();
+
+  if (sortBy === "bezirk") {
+    const oa = ortVon(a);
+    const ob = ortVon(b);
+    if (oa === ob) return byName();
+    if (!oa) return 1;
+    if (!ob) return -1;
+    return oa.localeCompare(ob, "de") || byName();
+  }
+
+  // kontakt_alt / kontakt_neu
+  const ta = ampelInfo(a.erstkontakt_am, a.wiedervorlage_am).tage;
+  const tb = ampelInfo(b.erstkontakt_am, b.wiedervorlage_am).tage;
+  if (ta == null && tb == null) return byName();
+  if (ta == null) return 1; // ohne gültiges Datum ans Ende
+  if (tb == null) return -1;
+  if (ta !== tb) return sortBy === "kontakt_alt" ? tb - ta : ta - tb;
+  return byName();
+}
+
 export function DashboardClient({
   schulen,
   me,
@@ -123,6 +164,7 @@ export function DashboardClient({
   );
   const [markFilter, setMarkFilter] = useState<string>("all");
   const [bezirkFilter, setBezirkFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<SortKey>("kontakt_alt");
   const [search, setSearch] = useState("");
 
   // Standorte, die der aktuelle User bearbeiten darf (Markierung/Legende).
@@ -347,14 +389,8 @@ export function DashboardClient({
           (s.stadt ?? "").toLowerCase().includes(q)
         );
       })
-      .sort((a, b) => {
-        // Overdue/today first, then by next-call date, then name.
-        const da = a.wiedervorlage_am ?? "9999";
-        const db = b.wiedervorlage_am ?? "9999";
-        if (da !== db) return da < db ? -1 : 1;
-        return a.name.localeCompare(b.name, "de");
-      });
-  }, [tabbed, matchStandort, statusFilter, ringFilter, bezirkFilter, markFilter, search]);
+      .sort((a, b) => compareSchulen(a, b, sortBy));
+  }, [tabbed, matchStandort, statusFilter, ringFilter, bezirkFilter, markFilter, search, sortBy]);
 
   // Bezirks-/Ortsoptionen aus dem aktuellen Standort-Scope (Feld bezirk, sonst stadt).
   const bezirkOptions = useMemo(() => {
@@ -673,6 +709,27 @@ export function DashboardClient({
                 </SelectContent>
               </Select>
             )}
+
+            <Select
+              value={sortBy}
+              onValueChange={(v) => setSortBy((v as SortKey) ?? "kontakt_alt")}
+            >
+              <SelectTrigger className="w-full min-w-40 sm:w-56">
+                <SelectValue placeholder="Sortieren nach">
+                  {(v: string) =>
+                    SORT_OPTIONS.find((o) => o.value === v)?.label ??
+                    "Sortieren nach"
+                  }
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {SORT_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
             {/* Ansicht umschalten: Kachel / Liste */}
             <div className="inline-flex shrink-0 items-center rounded-lg border p-0.5">
