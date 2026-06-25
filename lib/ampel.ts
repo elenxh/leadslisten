@@ -26,11 +26,21 @@ function daysSince(iso: string): number {
   return Math.floor((today.getTime() - ref.getTime()) / 86_400_000);
 }
 
+// Plausibel = ab 01.01.2020 bis einschließlich heute (kein 1900-Müll, keine
+// Zukunftsdaten). Schützt vor absurden Werten wie "vor 45967 Tagen".
+const MIN_DATUM = "2020-01-01";
+function istPlausibel(iso: string): boolean {
+  return iso >= MIN_DATUM && daysSince(iso) >= 0;
+}
+
 export function ampelInfo(
   erstkontakt: string | null | undefined,
   wiedervorlage: string | null | undefined,
 ): AmpelInfo {
-  const ref = dateOnly(wiedervorlage) ?? dateOnly(erstkontakt);
+  const wv = dateOnly(wiedervorlage);
+  const ek = dateOnly(erstkontakt);
+  // Bevorzugt Wiedervorlage, sonst Erstkontakt – aber nur, wenn plausibel.
+  const ref = wv && istPlausibel(wv) ? wv : ek && istPlausibel(ek) ? ek : null;
   if (!ref) return { stufe: null, tage: null };
 
   const tage = daysSince(ref);
