@@ -98,6 +98,15 @@ const istErledigt = (s: SchuleMitLeitung) =>
 const ortVon = (s: SchuleMitLeitung): string =>
   (s.bezirk ?? s.stadt ?? "").trim();
 
+// Volltext-Suche über die wichtigsten Felder (case-insensitive Teiltreffer).
+const matchesSuche = (s: SchuleMitLeitung, q: string): boolean =>
+  s.name.toLowerCase().includes(q) ||
+  (s.stadt ?? "").toLowerCase().includes(q) ||
+  (s.bezirk ?? "").toLowerCase().includes(q) ||
+  (s.tel ?? "").toLowerCase().includes(q) ||
+  (s.ansprechpartner ?? "").toLowerCase().includes(q) ||
+  (s.mail ?? "").toLowerCase().includes(q);
+
 type SortKey = "kontakt_alt" | "kontakt_neu" | "name" | "bezirk";
 
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
@@ -371,9 +380,9 @@ export function DashboardClient({
     };
   }, [tabbed, standorte, vorgeschlagen]);
 
-  // Alle Filter AUSSER der Schulart-Kategorie – Basis für die Tab-Zählung.
+  // Alle Filter AUSSER der Schulart-Kategorie (ohne Suche – die wird separat,
+  // reiterübergreifend behandelt) – Basis für die Tab-Zählung.
   const preSchulart = useMemo(() => {
-    const q = search.trim().toLowerCase();
     return tabbed
       .filter(matchStandort)
       .filter((s) => statusFilter === "all" || s.status === statusFilter)
@@ -384,15 +393,8 @@ export function DashboardClient({
         if (markFilter === "none") return !s.markierung_farbe;
         return s.markierung_farbe === markFilter;
       })
-      .filter((s) => {
-        if (!q) return true;
-        return (
-          s.name.toLowerCase().includes(q) ||
-          (s.stadt ?? "").toLowerCase().includes(q)
-        );
-      })
       .sort((a, b) => compareSchulen(a, b, sortBy));
-  }, [tabbed, matchStandort, statusFilter, ringFilter, bezirkFilter, markFilter, search, sortBy]);
+  }, [tabbed, matchStandort, statusFilter, ringFilter, bezirkFilter, markFilter, sortBy]);
 
   // Bezirks-/Ortsoptionen aus dem aktuellen Standort-Scope (Feld bezirk, sonst stadt).
   const bezirkOptions = useMemo(() => {
@@ -418,13 +420,22 @@ export function DashboardClient({
     return c;
   }, [preSchulart]);
 
+  const q = search.trim().toLowerCase();
   const filtered = useMemo(() => {
-    // Schulart-Kategorien gibt es nur im Schulen-Bereich.
+    // Aktive Suche: reiterübergreifend – ganzer Bereich + Standort, aktiv UND
+    // erledigt, alle Schularten/Status; nur Standort/Bereich bleiben.
+    if (q) {
+      return bereichSchulen
+        .filter(matchStandort)
+        .filter((s) => matchesSuche(s, q))
+        .sort((a, b) => compareSchulen(a, b, sortBy));
+    }
+    // Ohne Suche: normale Reiter/Filter; Schulart-Kategorie nur im Schulen-Bereich.
     if (bereich !== "schule" || schulartFilter === "all") return preSchulart;
     return preSchulart.filter(
       (s) => schulartKategorie(s.schulart) === schulartFilter,
     );
-  }, [preSchulart, schulartFilter, bereich]);
+  }, [q, bereichSchulen, matchStandort, sortBy, preSchulart, schulartFilter, bereich]);
 
   // Reihenfolge für die Vor/Zurück-Navigation in der Detailansicht merken.
   // filtered ist bereits standort-gescoped; standortFilter/bereich zusätzlich
@@ -788,8 +799,9 @@ export function DashboardClient({
           </div>
         </div>
 
-        {/* Schulart-Kategorien – nur im Schulen-Bereich */}
-        {bereich === "schule" && (
+        {/* Schulart-Kategorien – nur im Schulen-Bereich; bei aktiver Suche
+            ausgeblendet (Suche ist reiterübergreifend). */}
+        {bereich === "schule" && !q && (
           <Tabs
             value={schulartFilter}
             onValueChange={(v) => setSchulartFilter(v as SchulartKategorie | "all")}
@@ -862,7 +874,12 @@ export function DashboardClient({
         {/* Liste */}
         <div>
           <p className="mb-2 text-sm text-muted-foreground">
-            {filtered.length} {filtered.length === 1 ? nomenSg : nomen}
+            {filtered.length}{" "}
+            {q
+              ? "Treffer (reiterübergreifend)"
+              : filtered.length === 1
+                ? nomenSg
+                : nomen}
             {activeStandortName && (
               <> · {activeStandortName}</>
             )}
