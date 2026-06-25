@@ -37,11 +37,15 @@ export function ampelInfo(
   erstkontakt: string | null | undefined,
   wiedervorlage: string | null | undefined,
 ): AmpelInfo {
-  const wv = dateOnly(wiedervorlage);
-  const ek = dateOnly(erstkontakt);
-  // Bevorzugt Wiedervorlage, sonst Erstkontakt – aber nur, wenn plausibel.
-  const ref = wv && istPlausibel(wv) ? wv : ek && istPlausibel(ek) ? ek : null;
-  if (!ref) return { stufe: null, tage: null };
+  // Referenz = das NEUESTE (späteste) Datum, das plausibel und <= heute ist.
+  // Zukünftige Wiedervorlagen zählen also nicht; Altdaten vor 2020 auch nicht.
+  const candidates = [dateOnly(erstkontakt), dateOnly(wiedervorlage)].filter(
+    (d): d is string => !!d && istPlausibel(d),
+  );
+  if (candidates.length === 0) return { stufe: null, tage: null };
+
+  // ISO-Datumsstrings sind lexikografisch sortierbar -> Maximum = spätestes.
+  const ref = candidates.reduce((a, b) => (a >= b ? a : b));
 
   const tage = daysSince(ref);
   let stufe: AmpelStufe = "gruen";
