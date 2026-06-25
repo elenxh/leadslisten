@@ -51,6 +51,7 @@ import {
   type SidebarData,
 } from "@/components/app/standort-sidebar";
 import { createClient } from "@/lib/supabase/client";
+import { writeSchulOrder } from "@/lib/schul-order";
 import { STATUS_LIST } from "@/lib/status";
 import {
   SCHULART_KATEGORIEN,
@@ -337,6 +338,11 @@ export function DashboardClient({
       (s) => schulartKategorie(s.schulart) === schulartFilter,
     );
   }, [preSchulart, schulartFilter, bereich]);
+
+  // Reihenfolge für die Vor/Zurück-Navigation in der Detailansicht merken.
+  useEffect(() => {
+    writeSchulOrder(filtered.map((s) => s.id));
+  }, [filtered]);
 
   // Auswahl-Status bezogen auf die aktuell gefilterten Schulen.
   const allFilteredSelected =

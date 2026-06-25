@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
   ExternalLink,
   Loader2,
   Lock,
@@ -41,6 +43,7 @@ import {
 } from "@/app/standorte/actions";
 import { AmpelBadge } from "@/components/app/ampel";
 import { KontakteSection } from "@/components/app/kontakte-section";
+import { readSchulOrder } from "@/lib/schul-order";
 import { ringLabel } from "@/lib/berlin-ring";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import type {
@@ -73,6 +76,28 @@ export function SchuleDetail({
 }) {
   const router = useRouter();
   const admin = me.rolle === "admin";
+
+  // Vor/Zurück-Navigation gemäß der zuletzt im Dashboard gezeigten Reihenfolge.
+  const [nav, setNav] = useState<{
+    prev: string | null;
+    next: string | null;
+    pos: number;
+    total: number;
+  } | null>(null);
+  useEffect(() => {
+    const ids = readSchulOrder();
+    const idx = ids.indexOf(schule.id);
+    if (idx === -1) {
+      setNav(null);
+      return;
+    }
+    setNav({
+      prev: idx > 0 ? ids[idx - 1] : null,
+      next: idx < ids.length - 1 ? ids[idx + 1] : null,
+      pos: idx + 1,
+      total: ids.length,
+    });
+  }, [schule.id]);
 
   // Status: sofortiges Speichern via Server-Action (Standort-Berechtigung).
   const [statusVal, setStatusVal] = useState<SchulStatus>(schule.status);
@@ -210,10 +235,39 @@ export function SchuleDetail({
   return (
     <div className="mx-auto max-w-3xl space-y-4 px-4 py-5">
       <div className="flex items-center justify-between gap-2">
-        <Button variant="ghost" size="sm" render={<Link href="/dashboard" />}>
-          <ArrowLeft className="mr-1 size-4" />
-          Zurück
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" render={<Link href="/dashboard" />}>
+            <ArrowLeft className="mr-1 size-4" />
+            Zurück
+          </Button>
+          {nav && (
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="icon"
+                title="Vorherige Schule"
+                aria-label="Vorherige Schule"
+                disabled={!nav.prev}
+                onClick={() => nav.prev && router.push(`/schule/${nav.prev}`)}
+              >
+                <ChevronLeft className="size-4" />
+              </Button>
+              <span className="px-1 text-xs tabular-nums text-muted-foreground">
+                {nav.pos} / {nav.total}
+              </span>
+              <Button
+                variant="outline"
+                size="icon"
+                title="Nächste Schule"
+                aria-label="Nächste Schule"
+                disabled={!nav.next}
+                onClick={() => nav.next && router.push(`/schule/${nav.next}`)}
+              >
+                <ChevronRight className="size-4" />
+              </Button>
+            </div>
+          )}
+        </div>
         {!canEdit && (
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <Lock className="size-3" /> Nur Lesezugriff
