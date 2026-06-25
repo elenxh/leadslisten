@@ -173,7 +173,9 @@ export async function rejectStandort(id: string): Promise<SimpleResult> {
 
 /**
  * Admin löscht ALLE Schulen/Träger eines Standorts (für sauberen Neuimport).
- * Löscht zuerst die zugehörigen Anrufe, dann die Schulen.
+ * Läuft über den SERVICE-ROLE-Client (umgeht RLS). Reihenfolge FK-sicher:
+ * erst die zugehörigen Anrufe, dann die Schulen. Gibt die TATSÄCHLICH
+ * gelöschte Anzahl zurück.
  */
 export async function deleteSchulenByStandort(
   standortId: string,
@@ -182,6 +184,7 @@ export async function deleteSchulenByStandort(
   if (!user) return { ok: false, error: "Nicht angemeldet." };
   if (!user.isAdmin) return { ok: false, error: "Keine Berechtigung." };
 
+  // WICHTIG: Service-Role-Client (umgeht RLS) – NICHT der normale Client.
   const ac = adminClientOrError();
   if (!ac.ok) return ac;
 
@@ -192,8 +195,9 @@ export async function deleteSchulenByStandort(
   if (loadErr) return { ok: false, error: loadErr.message };
 
   const ids = (rows ?? []).map((r) => (r as { id: string }).id);
+  if (ids.length === 0) return { ok: true, count: 0 };
 
-  // Abhängige Anrufe zuerst entfernen (FK-sicher), in Batches.
+  // 1) Abhängige Anrufe zuerst entfernen (FK-sicher), in Batches.
   for (let i = 0; i < ids.length; i += 200) {
     const batch = ids.slice(i, i + 200);
     const { error } = await ac.admin
@@ -203,14 +207,27 @@ export async function deleteSchulenByStandort(
     if (error) return { ok: false, error: error.message };
   }
 
-  const { error: delErr } = await ac.admin
+  // 2) Schulen/Träger löschen und die tatsächlich gelöschten Zeilen zählen.
+  const { data: deleted, error: delErr } = await ac.admin
     .from("schulen")
     .delete()
-    .eq("standort_id", standortId);
+    .eq("standort_id", standortId)
+    .select("id");
   if (delErr) return { ok: false, error: delErr.message };
 
+  const count = deleted?.length ?? 0;
+  if (count === 0) {
+    return {
+      ok: false,
+      error:
+        `0 von ${ids.length} Einträgen gelöscht – vermutlich greift RLS. ` +
+        "Bitte sicherstellen, dass SUPABASE_SERVICE_ROLE_KEY der echte " +
+        "service_role-Key ist (Supabase → Project Settings → API).",
+    };
+  }
+
   revalidatePath("/dashboard");
-  return { ok: true, count: ids.length };
+  return { ok: true, count };
 }
 
 /**
