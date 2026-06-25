@@ -287,6 +287,128 @@ export async function updateSchulart(
   return { ok: true };
 }
 
+const MARKIERUNG_ERLAUBT = ["rot", "gelb", "gruen", "blau", "lila"];
+
+type AdminClient = ReturnType<typeof createAdminClient>;
+
+/** Darf der User (Leitung) diese Schule bearbeiten? Admin immer. */
+async function darfSchuleBearbeiten(
+  admin: AdminClient,
+  userId: string,
+  isAdmin: boolean,
+  schuleId: string,
+): Promise<SimpleResult> {
+  if (isAdmin) return { ok: true };
+  const { data: schule } = await admin
+    .from("schulen")
+    .select("standort_id")
+    .eq("id", schuleId)
+    .single();
+  if (!schule) return { ok: false, error: "Schule nicht gefunden." };
+  if (!schule.standort_id) {
+    return { ok: false, error: "Diese Schule gehört zu keinem deiner Standorte." };
+  }
+  const { data: rel } = await admin
+    .from("leitung_standort")
+    .select("standort_id")
+    .eq("leitung_id", userId)
+    .eq("standort_id", schule.standort_id)
+    .maybeSingle();
+  if (!rel) {
+    return { ok: false, error: "Keine Berechtigung für den Standort dieser Schule." };
+  }
+  return { ok: true };
+}
+
+/** Darf der User (Leitung) diesen Standort bearbeiten? Admin immer. */
+async function darfStandortBearbeiten(
+  admin: AdminClient,
+  userId: string,
+  isAdmin: boolean,
+  standortId: string,
+): Promise<SimpleResult> {
+  if (isAdmin) return { ok: true };
+  const { data: rel } = await admin
+    .from("leitung_standort")
+    .select("standort_id")
+    .eq("leitung_id", userId)
+    .eq("standort_id", standortId)
+    .maybeSingle();
+  if (!rel) return { ok: false, error: "Keine Berechtigung für diesen Standort." };
+  return { ok: true };
+}
+
+/**
+ * Setzt die Farbmarkierung einer Schule (oder entfernt sie mit null).
+ * Berechtigung wie bei der Schulart: Admin immer, Leitung nur für Schulen
+ * an einem ihr zugeordneten Standort.
+ */
+export async function updateMarkierung(
+  schuleId: string,
+  farbe: string | null,
+): Promise<SimpleResult> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: "Nicht angemeldet." };
+
+  const ac = adminClientOrError();
+  if (!ac.ok) return ac;
+
+  const perm = await darfSchuleBearbeiten(ac.admin, user.id, user.isAdmin, schuleId);
+  if (!perm.ok) return perm;
+
+  const f = farbe && MARKIERUNG_ERLAUBT.includes(farbe) ? farbe : null;
+  const { error } = await ac.admin
+    .from("schulen")
+    .update({ markierung_farbe: f })
+    .eq("id", schuleId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/dashboard");
+  revalidatePath(`/schule/${schuleId}`);
+  return { ok: true };
+}
+
+/**
+ * Speichert die Farb-Legende (Bezeichnungen der 5 Farben) eines Standorts.
+ * Berechtigung: Admin immer, Leitung nur für eigene Standorte.
+ */
+export async function saveFarbLegende(
+  standortId: string,
+  entries: { farbe: string; bezeichnung: string }[],
+): Promise<SimpleResult> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: "Nicht angemeldet." };
+
+  const ac = adminClientOrError();
+  if (!ac.ok) return ac;
+
+  const perm = await darfStandortBearbeiten(
+    ac.admin,
+    user.id,
+    user.isAdmin,
+    standortId,
+  );
+  if (!perm.ok) return perm;
+
+  const rows = entries
+    .filter((e) => MARKIERUNG_ERLAUBT.includes(e.farbe))
+    .map((e) => ({
+      standort_id: standortId,
+      farbe: e.farbe,
+      bezeichnung: (e.bezeichnung ?? "").trim(),
+    }));
+
+  if (rows.length > 0) {
+    const { error } = await ac.admin
+      .from("farb_legende")
+      .upsert(rows, { onConflict: "standort_id,farbe" });
+    if (error) return { ok: false, error: error.message };
+  }
+
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
+
 export type BulkResult =
   | { ok: true; count: number }
   | { ok: false; error: string };

@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { StatusBadge } from "@/components/app/status-badge";
 import { LeitungAvatar } from "@/components/app/leitung-avatar";
 import { SelectCheckbox } from "@/components/app/select-checkbox";
+import { SchulMarkierung } from "@/components/app/schul-markierung";
 import { formatDate, isDueToday, isOverdue } from "@/lib/dates";
 import { ringLabel } from "@/lib/berlin-ring";
 import type { SchuleMitLeitung } from "@/lib/types";
@@ -17,12 +18,16 @@ export function SchulCard({
   selectable,
   selected,
   onToggle,
+  markEditable,
+  legende,
 }: {
   schule: SchuleMitLeitung;
   showLeitung?: boolean;
   selectable?: boolean;
   selected?: boolean;
   onToggle?: (checked: boolean) => void;
+  markEditable?: boolean;
+  legende?: Record<string, string>;
 }) {
   const overdue = isOverdue(schule.naechster_anruf);
   const dueToday = isDueToday(schule.naechster_anruf);
@@ -66,6 +71,12 @@ export function SchulCard({
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
+          <SchulMarkierung
+            schuleId={schule.id}
+            farbe={schule.markierung_farbe}
+            editable={!!markEditable}
+            legende={legende}
+          />
           <StatusBadge status={schule.status} />
           {schule.schulart && (
             <Badge variant="secondary" className="font-normal">
