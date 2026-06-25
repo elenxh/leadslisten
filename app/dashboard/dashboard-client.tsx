@@ -192,10 +192,11 @@ export function DashboardClient({
     clearSelection();
   }
 
-  // Standortwahl: Bezirk-Filter zurücksetzen (Bezirke sind standort-spezifisch).
+  // Standortwahl: standort-spezifische Filter (Bezirk, Ring) zurücksetzen.
   function changeStandort(v: string) {
     setStandortFilter(v);
     setBezirkFilter("all");
+    setRingFilter("all");
   }
 
   // Träger-Erkennung: primär typ, als Sicherheitsnetz auch die Schulart
@@ -365,6 +366,13 @@ export function DashboardClient({
     return Array.from(set).sort((a, b) => a.localeCompare(b, "de"));
   }, [bereichSchulen, matchStandort]);
 
+  // Ring ist ein Brandenburg-Konzept: Dropdown nur zeigen, wenn der aktuelle
+  // Standort-Scope überhaupt Schulen mit gesetztem Ring enthält.
+  const hatRinge = useMemo(
+    () => bereichSchulen.filter(matchStandort).some((s) => s.ring != null),
+    [bereichSchulen, matchStandort],
+  );
+
   // Anzahl je Schulart-Kategorie (innerhalb der übrigen aktiven Filter).
   const schulartCounts = useMemo(() => {
     const c = { all: preSchulart.length, grundschule: 0, weiterfuehrende: 0, berufsschule: 0 };
@@ -381,9 +389,12 @@ export function DashboardClient({
   }, [preSchulart, schulartFilter, bereich]);
 
   // Reihenfolge für die Vor/Zurück-Navigation in der Detailansicht merken.
+  // filtered ist bereits standort-gescoped; standortFilter/bereich zusätzlich
+  // in den Deps, damit ein Standortwechsel die Reihenfolge garantiert neu
+  // schreibt (Pfeile bleiben im gewählten Standort, Anzeige "X / 539").
   useEffect(() => {
     writeSchulOrder(filtered.map((s) => s.id));
-  }, [filtered]);
+  }, [filtered, standortFilter, bereich]);
 
   // Auswahl-Status bezogen auf die aktuell gefilterten Schulen.
   const allFilteredSelected =
@@ -622,23 +633,25 @@ export function DashboardClient({
                 ))}
               </SelectContent>
             </Select>
-            <Select value={ringFilter} onValueChange={(v) => setRingFilter((v as string) ?? "all")}>
-              <SelectTrigger className="w-full min-w-24 sm:w-32">
-                <SelectValue placeholder="Ring">
-                  {(v: string) =>
-                    v === "all" || !v ? "Alle Ringe" : ringLabel(Number(v))
-                  }
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Alle Ringe</SelectItem>
-                {RING_OPTIONS.map((r) => (
-                  <SelectItem key={r} value={String(r)}>
-                    {ringLabel(r)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {hatRinge && (
+              <Select value={ringFilter} onValueChange={(v) => setRingFilter((v as string) ?? "all")}>
+                <SelectTrigger className="w-full min-w-24 sm:w-32">
+                  <SelectValue placeholder="Ring">
+                    {(v: string) =>
+                      v === "all" || !v ? "Alle Ringe" : ringLabel(Number(v))
+                    }
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle Ringe</SelectItem>
+                  {RING_OPTIONS.map((r) => (
+                    <SelectItem key={r} value={String(r)}>
+                      {ringLabel(r)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
 
             {bezirkOptions.length > 0 && (
               <Select
