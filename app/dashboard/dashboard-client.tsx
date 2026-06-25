@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   CalendarClock,
@@ -71,7 +71,13 @@ import type {
 
 type LegendeRow = Pick<FarbLegende, "standort_id" | "farbe" | "bezeichnung">;
 
-type TabKey = "meine" | "faellig" | "woche" | "erledigt" | "alle";
+type TabKey =
+  | "meine"
+  | "faellig"
+  | "woche"
+  | "wiedervorlage"
+  | "erledigt"
+  | "alle";
 type ViewMode = "kachel" | "liste";
 type Bereich = "schule" | "traeger";
 
@@ -84,6 +90,10 @@ const ERLEDIGT_STATUS: readonly string[] = [
 ];
 const istErledigt = (s: SchuleMitLeitung) =>
   ERLEDIGT_STATUS.includes(s.status);
+
+// Ort für den Bezirks-Filter: bevorzugt Bezirk, sonst Stadt.
+const ortVon = (s: SchuleMitLeitung): string =>
+  (s.bezirk ?? s.stadt ?? "").trim();
 
 export function DashboardClient({
   schulen,
@@ -112,6 +122,7 @@ export function DashboardClient({
     "all",
   );
   const [markFilter, setMarkFilter] = useState<string>("all");
+  const [bezirkFilter, setBezirkFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
 
   // Standorte, die der aktuelle User bearbeiten darf (Markierung/Legende).
@@ -177,7 +188,14 @@ export function DashboardClient({
     setTab(admin ? "alle" : "meine");
     setSchulartFilter("all");
     setStandortFilter(STANDORT_ALLE);
+    setBezirkFilter("all");
     clearSelection();
+  }
+
+  // Standortwahl: Bezirk-Filter zurücksetzen (Bezirke sind standort-spezifisch).
+  function changeStandort(v: string) {
+    setStandortFilter(v);
+    setBezirkFilter("all");
   }
 
   // Träger-Erkennung: primär typ, als Sicherheitsnetz auch die Schulart
@@ -218,8 +236,22 @@ export function DashboardClient({
     [bereichSchulen, me.id],
   );
 
-  // Stat scope: a Leitung sees their own numbers; the admin sees the total.
-  const statScope = admin ? bereichSchulen : mine;
+  // Standort-Scope: gleiche Logik wie die Liste (konkreter Standort / alle / ohne).
+  const matchStandort = useCallback(
+    (s: SchuleMitLeitung) => {
+      if (standortFilter === STANDORT_ALLE) return true;
+      if (standortFilter === STANDORT_OHNE) return s.standort_id == null;
+      return s.standort_id === standortFilter;
+    },
+    [standortFilter],
+  );
+
+  // Stat scope: Leitung sieht ihre eigenen Zahlen, Admin alle – jeweils im
+  // aktuell gewählten Standort (Kacheln folgen demselben Scope wie die Liste).
+  const statScope = useMemo(
+    () => (admin ? bereichSchulen : mine).filter(matchStandort),
+    [admin, bereichSchulen, mine, matchStandort],
+  );
   const stats = useMemo(() => {
     const aktiv = statScope.filter((s) => !istErledigt(s));
     return {
@@ -227,7 +259,7 @@ export function DashboardClient({
       faellig: aktiv.filter(
         (s) => isDueToday(s.wiedervorlage_am) || isOverdue(s.wiedervorlage_am),
       ).length,
-      wiedervorlage: aktiv.filter((s) => s.status === "Wiedervorlage Anruf").length,
+      wiedervorlage: aktiv.filter((s) => s.wiedervorlage_am != null).length,
       erledigt: statScope.filter(istErledigt).length,
     };
   }, [statScope]);
@@ -266,6 +298,8 @@ export function DashboardClient({
         );
       case "woche":
         return aktiv.filter((s) => isDueThisWeek(s.wiedervorlage_am));
+      case "wiedervorlage":
+        return aktiv.filter((s) => s.wiedervorlage_am != null);
       case "erledigt":
         return bereichSchulen.filter(istErledigt);
       case "alle":
@@ -296,13 +330,10 @@ export function DashboardClient({
   const preSchulart = useMemo(() => {
     const q = search.trim().toLowerCase();
     return tabbed
-      .filter((s) => {
-        if (standortFilter === STANDORT_ALLE) return true;
-        if (standortFilter === STANDORT_OHNE) return s.standort_id == null;
-        return s.standort_id === standortFilter;
-      })
+      .filter(matchStandort)
       .filter((s) => statusFilter === "all" || s.status === statusFilter)
       .filter((s) => ringFilter === "all" || String(s.ring) === ringFilter)
+      .filter((s) => bezirkFilter === "all" || ortVon(s) === bezirkFilter)
       .filter((s) => {
         if (markFilter === "all") return true;
         if (markFilter === "none") return !s.markierung_farbe;
@@ -322,7 +353,17 @@ export function DashboardClient({
         if (da !== db) return da < db ? -1 : 1;
         return a.name.localeCompare(b.name, "de");
       });
-  }, [tabbed, standortFilter, statusFilter, ringFilter, markFilter, search]);
+  }, [tabbed, matchStandort, statusFilter, ringFilter, bezirkFilter, markFilter, search]);
+
+  // Bezirks-/Ortsoptionen aus dem aktuellen Standort-Scope (Feld bezirk, sonst stadt).
+  const bezirkOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of bereichSchulen.filter(matchStandort)) {
+      const o = ortVon(s);
+      if (o) set.add(o);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "de"));
+  }, [bereichSchulen, matchStandort]);
 
   // Anzahl je Schulart-Kategorie (innerhalb der übrigen aktiven Filter).
   const schulartCounts = useMemo(() => {
@@ -414,7 +455,7 @@ export function DashboardClient({
           <StandortSidebar
             data={sidebarData}
             value={standortFilter}
-            onChange={setStandortFilter}
+            onChange={changeStandort}
             isAdmin={admin}
             leitungen={leitungen}
             totalCounts={totalByStandort}
@@ -466,7 +507,11 @@ export function DashboardClient({
             icon={School}
             accent="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"
             active={tab === (admin ? "alle" : "meine")}
-            onClick={() => setTab(admin ? "alle" : "meine")}
+            onClick={() => {
+              setTab(admin ? "alle" : "meine");
+              setStatusFilter("all");
+              setMarkFilter("all");
+            }}
           />
           <StatCard
             label="Heute fällig"
@@ -481,12 +526,8 @@ export function DashboardClient({
             value={stats.wiedervorlage}
             icon={MessagesSquare}
             accent="bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-200"
-            active={statusFilter === "Wiedervorlage Anruf"}
-            onClick={() =>
-              setStatusFilter((cur) =>
-                cur === "Wiedervorlage Anruf" ? "all" : "Wiedervorlage Anruf",
-              )
-            }
+            active={tab === "wiedervorlage"}
+            onClick={() => setTab("wiedervorlage")}
           />
           <StatCard
             label="Erledigt"
@@ -517,7 +558,7 @@ export function DashboardClient({
                 data={sidebarData}
                 value={standortFilter}
                 onChange={(v) => {
-                  setStandortFilter(v);
+                  changeStandort(v);
                   setMobileNavOpen(false);
                 }}
                 isAdmin={admin}
@@ -598,6 +639,27 @@ export function DashboardClient({
                 ))}
               </SelectContent>
             </Select>
+
+            {bezirkOptions.length > 0 && (
+              <Select
+                value={bezirkFilter}
+                onValueChange={(v) => setBezirkFilter((v as string) ?? "all")}
+              >
+                <SelectTrigger className="w-full min-w-32 sm:w-44">
+                  <SelectValue placeholder="Bezirk">
+                    {(v: string) => (v === "all" || !v ? "Alle Bezirke" : v)}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle Bezirke</SelectItem>
+                  {bezirkOptions.map((b) => (
+                    <SelectItem key={b} value={b}>
+                      {b}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
 
             {/* Ansicht umschalten: Kachel / Liste */}
             <div className="inline-flex shrink-0 items-center rounded-lg border p-0.5">
