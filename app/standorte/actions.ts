@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { ringForTown } from "@/lib/berlin-ring";
 import type { Standort } from "@/lib/types";
 
 export type SimpleResult = { ok: true } | { ok: false; error: string };
@@ -468,6 +469,117 @@ export async function updateStatus(
   revalidatePath("/dashboard");
   revalidatePath(`/schule/${schuleId}`);
   return { ok: true };
+}
+
+/** Admin oder betreuende Standort-Leitung löscht eine Schule endgültig. */
+export async function deleteSchule(schuleId: string): Promise<SimpleResult> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: "Nicht angemeldet." };
+
+  const ac = adminClientOrError();
+  if (!ac.ok) return ac;
+
+  const perm = await darfSchuleBearbeiten(ac.admin, user.id, user.isAdmin, schuleId);
+  if (!perm.ok) return perm;
+
+  // Anrufe zuerst (FK-sicher); kontakte hängen per ON DELETE CASCADE.
+  const { error: aErr } = await ac.admin
+    .from("anrufe")
+    .delete()
+    .eq("schule_id", schuleId);
+  if (aErr) return { ok: false, error: aErr.message };
+
+  const { error } = await ac.admin.from("schulen").delete().eq("id", schuleId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
+
+export interface CreateSchuleInput {
+  name: string;
+  schulart: string | null;
+  bezirk: string | null;
+  homepage: string | null;
+  adresse: string | null;
+  ansprechpartner: string | null;
+  rolle_ap: string | null;
+  tel: string | null;
+  mail: string | null;
+  status: string;
+  erstkontakt_am: string | null;
+  wiedervorlage_am: string | null;
+  standortId: string | null;
+  zustaendig: string | null;
+  typ: "schule" | "traeger";
+}
+
+/**
+ * Legt eine neue Schule/Träger an. Berechtigung: Admin immer; Leitung nur für
+ * einen ihr zugeordneten Standort. Stadt/Ring werden aus dem Bezirk abgeleitet.
+ */
+export async function createSchule(
+  input: CreateSchuleInput,
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: "Nicht angemeldet." };
+
+  const name = input.name.trim();
+  if (!name) return { ok: false, error: "Name ist erforderlich." };
+
+  const ac = adminClientOrError();
+  if (!ac.ok) return ac;
+
+  const standortId = input.standortId || null;
+  if (standortId) {
+    const perm = await darfStandortBearbeiten(
+      ac.admin,
+      user.id,
+      user.isAdmin,
+      standortId,
+    );
+    if (!perm.ok) return perm;
+  } else if (!user.isAdmin) {
+    return { ok: false, error: "Bitte einen Standort wählen." };
+  }
+
+  const norm = (v: string | null) => {
+    const t = (v ?? "").trim();
+    return t.length ? t : null;
+  };
+  const bezirk = norm(input.bezirk);
+  const stadt = bezirk ? bezirk.split(/[,/]/)[0]?.trim() || null : null;
+  const ring = ringForTown(stadt);
+  const status = STATUS_ERLAUBT.includes(input.status) ? input.status : "Neu";
+  const typ = input.typ === "traeger" ? "traeger" : "schule";
+
+  const { data, error } = await ac.admin
+    .from("schulen")
+    .insert({
+      name,
+      schulart: norm(input.schulart),
+      bezirk,
+      stadt,
+      ring,
+      homepage: norm(input.homepage),
+      adresse: norm(input.adresse),
+      ansprechpartner: norm(input.ansprechpartner),
+      rolle_ap: norm(input.rolle_ap),
+      tel: norm(input.tel),
+      mail: norm(input.mail),
+      status,
+      erstkontakt_am: input.erstkontakt_am || null,
+      wiedervorlage_am: input.wiedervorlage_am || null,
+      standort_id: standortId,
+      zustaendig: input.zustaendig || null,
+      typ,
+    })
+    .select("id")
+    .single();
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/dashboard");
+  return { ok: true, id: (data as { id: string }).id };
 }
 
 export interface KontaktdatenInput {

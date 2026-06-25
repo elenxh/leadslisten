@@ -38,6 +38,7 @@ import { SchulCard } from "@/components/app/schul-card";
 import { SchulTable } from "@/components/app/schul-table";
 import { SelectCheckbox } from "@/components/app/select-checkbox";
 import { FarbLegendeDialog } from "@/components/app/farb-legende-dialog";
+import { NeueSchuleDialog } from "@/components/app/neue-schule-dialog";
 import {
   bulkSetSchulenLeitung,
   bulkSetSchulenStandort,
@@ -516,32 +517,51 @@ export function DashboardClient({
           admin && selected.size > 0 && "pb-28",
         )}
       >
-        {/* Bereich-Umschalter: Schulen / Soziale Träger */}
-        <div className="inline-flex rounded-lg border p-0.5">
-          <button
-            type="button"
-            onClick={() => changeBereich("schule")}
-            className={cn(
-              "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-              bereich === "schule"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            Schulen
-          </button>
-          <button
-            type="button"
-            onClick={() => changeBereich("traeger")}
-            className={cn(
-              "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-              bereich === "traeger"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            Soziale Träger
-          </button>
+        {/* Bereich-Umschalter + Neue Schule/Träger */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="inline-flex rounded-lg border p-0.5">
+            <button
+              type="button"
+              onClick={() => changeBereich("schule")}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                bereich === "schule"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Schulen
+            </button>
+            <button
+              type="button"
+              onClick={() => changeBereich("traeger")}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                bereich === "traeger"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Soziale Träger
+            </button>
+          </div>
+
+          {(admin || standorte.length > 0) && (
+            <NeueSchuleDialog
+              standorte={standorte}
+              leitungen={leitungen}
+              isAdmin={admin}
+              meId={me.id}
+              meName={me.name}
+              defaultStandortId={
+                standortFilter !== STANDORT_ALLE &&
+                standortFilter !== STANDORT_OHNE
+                  ? standortFilter
+                  : ""
+              }
+              bereich={bereich}
+            />
+          )}
         </div>
 
         {/* Statistik-Kacheln */}
