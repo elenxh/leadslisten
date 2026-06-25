@@ -50,6 +50,11 @@ import {
 } from "@/components/app/standort-sidebar";
 import { createClient } from "@/lib/supabase/client";
 import { STATUS_LIST } from "@/lib/status";
+import {
+  SCHULART_KATEGORIEN,
+  schulartKategorie,
+  type SchulartKategorie,
+} from "@/lib/schulart";
 import { RING_OPTIONS, ringLabel } from "@/lib/berlin-ring";
 import { isDueThisWeek, isDueToday, isOverdue } from "@/lib/dates";
 import type {
@@ -84,6 +89,9 @@ export function DashboardClient({
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [ringFilter, setRingFilter] = useState<string>("all");
   const [standortFilter, setStandortFilter] = useState<string>(STANDORT_ALLE);
+  const [schulartFilter, setSchulartFilter] = useState<SchulartKategorie | "all">(
+    "all",
+  );
   const [search, setSearch] = useState("");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   // Standard: Kachel. Beim Mount aus localStorage übernehmen (vermeidet
@@ -194,7 +202,8 @@ export function DashboardClient({
     }
   }, [tab, mine, schulen]);
 
-  const filtered = useMemo(() => {
+  // Alle Filter AUSSER der Schulart-Kategorie – Basis für die Tab-Zählung.
+  const preSchulart = useMemo(() => {
     const q = search.trim().toLowerCase();
     return tabbed
       .filter((s) => {
@@ -219,6 +228,20 @@ export function DashboardClient({
         return a.name.localeCompare(b.name, "de");
       });
   }, [tabbed, standortFilter, statusFilter, ringFilter, search]);
+
+  // Anzahl je Schulart-Kategorie (innerhalb der übrigen aktiven Filter).
+  const schulartCounts = useMemo(() => {
+    const c = { all: preSchulart.length, grundschule: 0, weiterfuehrende: 0, berufsschule: 0 };
+    for (const s of preSchulart) c[schulartKategorie(s.schulart)]++;
+    return c;
+  }, [preSchulart]);
+
+  const filtered = useMemo(() => {
+    if (schulartFilter === "all") return preSchulart;
+    return preSchulart.filter(
+      (s) => schulartKategorie(s.schulart) === schulartFilter,
+    );
+  }, [preSchulart, schulartFilter]);
 
   // Auswahl-Status bezogen auf die aktuell gefilterten Schulen.
   const allFilteredSelected =
@@ -473,6 +496,28 @@ export function DashboardClient({
           </div>
         </div>
 
+        {/* Schulart-Kategorien */}
+        <Tabs
+          value={schulartFilter}
+          onValueChange={(v) => setSchulartFilter(v as SchulartKategorie | "all")}
+        >
+          <TabsList className="flex w-full flex-wrap">
+            <TabsTrigger value="all">
+              Alle
+              <SchulartCount n={schulartCounts.all} active={schulartFilter === "all"} />
+            </TabsTrigger>
+            {SCHULART_KATEGORIEN.map((k) => (
+              <TabsTrigger key={k.value} value={k.value}>
+                {k.label}
+                <SchulartCount
+                  n={schulartCounts[k.value]}
+                  active={schulartFilter === k.value}
+                />
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+
         {/* Liste */}
         <div>
           <p className="mb-2 text-sm text-muted-foreground">
@@ -617,5 +662,18 @@ export function DashboardClient({
         </div>
       )}
     </div>
+  );
+}
+
+function SchulartCount({ n, active }: { n: number; active: boolean }) {
+  return (
+    <span
+      className={cn(
+        "ml-1.5 rounded-full px-1.5 text-xs tabular-nums",
+        active ? "bg-primary/15 text-primary" : "text-muted-foreground",
+      )}
+    >
+      {n}
+    </span>
   );
 }

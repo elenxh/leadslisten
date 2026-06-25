@@ -33,8 +33,9 @@ export function SchulTable({
       <div className="hidden border-b bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground sm:flex sm:items-center sm:gap-3">
         {selectable && <span className="w-4 shrink-0" />}
         <span className="min-w-0 flex-1">Schule</span>
-        <span className="w-32 shrink-0">Stadt</span>
-        <span className="w-32 shrink-0">Status</span>
+        <span className="w-28 shrink-0">Stadt</span>
+        <span className="w-40 shrink-0">Schulart</span>
+        <span className="w-28 shrink-0">Status</span>
         <span className="w-36 shrink-0">Telefon</span>
         {showLeitung && <span className="w-8 shrink-0" />}
       </div>
@@ -74,7 +75,7 @@ export function SchulTable({
                 <div className="truncate font-medium">{s.name}</div>
                 <div className="mt-0.5 flex items-center gap-2 sm:hidden">
                   <span className="truncate text-xs text-muted-foreground">
-                    {s.stadt ?? "—"}
+                    {[s.stadt, s.schulart].filter(Boolean).join(" · ") || "—"}
                   </span>
                   {(overdue || dueToday) && s.naechster_anruf && (
                     <span
@@ -91,12 +92,17 @@ export function SchulTable({
               </div>
 
               {/* Stadt – Desktop */}
-              <span className="hidden w-32 shrink-0 truncate text-muted-foreground sm:block">
+              <span className="hidden w-28 shrink-0 truncate text-muted-foreground sm:block">
                 {s.stadt ?? "—"}
               </span>
 
+              {/* Schulart – Desktop */}
+              <span className="hidden w-40 shrink-0 truncate text-muted-foreground sm:block">
+                {s.schulart ?? "—"}
+              </span>
+
               {/* Status */}
-              <span className="w-auto shrink-0 sm:w-32">
+              <span className="w-auto shrink-0 sm:w-28">
                 <StatusBadge status={s.status} />
               </span>
 
