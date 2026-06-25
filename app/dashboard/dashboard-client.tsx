@@ -55,6 +55,7 @@ import { STATUS_LIST } from "@/lib/status";
 import {
   SCHULART_KATEGORIEN,
   schulartKategorie,
+  istTraegerSchulart,
   type SchulartKategorie,
 } from "@/lib/schulart";
 import { RING_OPTIONS, ringLabel } from "@/lib/berlin-ring";
@@ -182,7 +183,7 @@ export function DashboardClient({
   // (falls typ noch nicht gesetzt ist) -> Träger erscheinen NIE in der
   // Schulliste, sondern nur im Bereich "Soziale Träger".
   const istTraegerRow = (s: SchuleMitLeitung) =>
-    s.typ === "traeger" || /tr[äa]ger/i.test(s.schulart ?? "");
+    s.typ === "traeger" || istTraegerSchulart(s.schulart);
 
   // Nur Einträge des aktuellen Bereichs (Schulen ODER Träger).
   const bereichSchulen = useMemo(

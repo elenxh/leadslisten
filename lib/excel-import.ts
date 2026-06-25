@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
 
 import { ringForTown } from "@/lib/berlin-ring";
+import { istTraegerSchulart } from "@/lib/schulart";
 
 // One school as read from an Excel row (raw, before ring/stadt derivation).
 export interface RawSchule {
@@ -148,7 +149,8 @@ function parseSheet(rows: unknown[][], sheetName: string): RawSchule[] {
     const name = cell(row, 0); // A
     if (!name) continue; // Leerzeilen / Trenner überspringen
     const schulart = cell(row, 2) ?? sheetName; // C, sonst Sheet-Name
-    const istTraeger = /tr[äa]ger/i.test(schulart) || /tr[äa]ger/i.test(sheetName);
+    const istTraeger =
+      istTraegerSchulart(schulart) || istTraegerSchulart(sheetName);
     out.push({
       name,
       bezirk: cell(row, 1), // B

@@ -48,6 +48,17 @@ export function schulartKategorieLabel(k: SchulartKategorie): string {
   return SCHULART_KATEGORIEN.find((x) => x.value === k)?.label ?? k;
 }
 
+// Erkennt anhand der (freien) Schulart, ob ein Eintrag ein sozialer Träger ist
+// und NICHT in die Schulliste gehört. Deckt z. B. ab: "Träger",
+// "Freier Träger …", "Soz. Träger", "Öffntl. Organisationen".
+export function istTraegerSchulart(
+  schulart: string | null | undefined,
+): boolean {
+  const s = (schulart ?? "").toLowerCase();
+  if (!s) return false;
+  return /tr[äa]ger|organisation|öffntl|öffentl|offentl/.test(s);
+}
+
 // Gängige Berliner Schularten für das Bearbeiten-Dropdown.
 export const SCHULART_OPTIONS: string[] = [
   "Grundschule",
