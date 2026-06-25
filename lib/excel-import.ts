@@ -15,6 +15,7 @@ export interface RawSchule {
   notiz: string | null;
   erstkontakt: string | null; // ISO date (YYYY-MM-DD) aus Spalte J
   status: string | null; // Spalte K
+  typ: "schule" | "traeger"; // aus Schulart/Sheet abgeleitet
 }
 
 // Erlaubte Status-Werte (Spalte K); alles andere -> null (Default 'Neu').
@@ -132,10 +133,12 @@ function parseSheet(rows: unknown[][], sheetName: string): RawSchule[] {
     const row = rows[i] ?? [];
     const name = cell(row, 0); // A
     if (!name) continue; // Leerzeilen / Trenner überspringen
+    const schulart = cell(row, 2) ?? sheetName; // C, sonst Sheet-Name
+    const istTraeger = /tr[äa]ger/i.test(schulart) || /tr[äa]ger/i.test(sheetName);
     out.push({
       name,
       bezirk: cell(row, 1), // B
-      schulart: cell(row, 2) ?? sheetName, // C, sonst Sheet-Name
+      schulart, // C, sonst Sheet-Name
       homepage: cell(row, 3), // D
       ansprechpartner: cell(row, 4), // E
       rolle_ap: cell(row, 5), // F
@@ -144,6 +147,7 @@ function parseSheet(rows: unknown[][], sheetName: string): RawSchule[] {
       notiz: cell(row, 8), // I -> notiz_original
       erstkontakt: parseDateCell(row[erstkontaktCol]), // J -> erstkontakt_am
       status: normalizeStatus(cell(row, statusCol)), // K -> status
+      typ: istTraeger ? "traeger" : "schule",
     });
   }
   return out;

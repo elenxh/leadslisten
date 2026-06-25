@@ -69,10 +69,16 @@ import type {
 
 type LegendeRow = Pick<FarbLegende, "standort_id" | "farbe" | "bezeichnung">;
 
-type TabKey = "meine" | "faellig" | "woche" | "koop" | "alle";
+type TabKey = "meine" | "faellig" | "woche" | "erledigt" | "alle";
 type ViewMode = "kachel" | "liste";
+type Bereich = "schule" | "traeger";
 
 const VIEW_STORAGE_KEY = "leadslisten:schul-view";
+
+// Diese Status gelten als erledigt: aus der aktiven Liste/Zählung ausblenden.
+const ERLEDIGT_STATUS: readonly string[] = ["Kein Interesse", "Kooperation"];
+const istErledigt = (s: SchuleMitLeitung) =>
+  ERLEDIGT_STATUS.includes(s.status);
 
 export function DashboardClient({
   schulen,
@@ -92,6 +98,7 @@ export function DashboardClient({
   const router = useRouter();
   const admin = me.rolle === "admin";
 
+  const [bereich, setBereich] = useState<Bereich>("schule");
   const [tab, setTab] = useState<TabKey>(admin ? "alle" : "meine");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [ringFilter, setRingFilter] = useState<string>("all");
@@ -150,6 +157,22 @@ export function DashboardClient({
     setSelected(new Set());
   }
 
+  function changeBereich(next: Bereich) {
+    setBereich(next);
+    setTab(admin ? "alle" : "meine");
+    setSchulartFilter("all");
+    setStandortFilter(STANDORT_ALLE);
+    clearSelection();
+  }
+
+  // Nur Einträge des aktuellen Bereichs (Schulen ODER Träger).
+  const bereichSchulen = useMemo(
+    () => schulen.filter((s) => (s.typ ?? "schule") === bereich),
+    [schulen, bereich],
+  );
+  const nomen = bereich === "traeger" ? "Träger" : "Schulen";
+  const nomenSg = bereich === "traeger" ? "Träger" : "Schule";
+
   // Realtime: refresh server data on any change to schulen.
   useEffect(() => {
     const supabase = createClient();
@@ -167,39 +190,23 @@ export function DashboardClient({
   }, [router]);
 
   const mine = useMemo(
-    () => schulen.filter((s) => s.zustaendig === me.id),
-    [schulen, me.id],
+    () => bereichSchulen.filter((s) => s.zustaendig === me.id),
+    [bereichSchulen, me.id],
   );
 
   // Stat scope: a Leitung sees their own numbers; the admin sees the total.
-  const statScope = admin ? schulen : mine;
+  const statScope = admin ? bereichSchulen : mine;
   const stats = useMemo(() => {
+    const aktiv = statScope.filter((s) => !istErledigt(s));
     return {
-      mine: statScope.length,
-      faellig: statScope.filter(
+      mine: aktiv.length,
+      faellig: aktiv.filter(
         (s) => isDueToday(s.wiedervorlage_am) || isOverdue(s.wiedervorlage_am),
       ).length,
-      wiedervorlage: statScope.filter((s) => s.status === "Wiedervorlage").length,
-      koop: statScope.filter((s) => s.status === "Kooperation").length,
+      wiedervorlage: aktiv.filter((s) => s.status === "Wiedervorlage").length,
+      erledigt: statScope.filter(istErledigt).length,
     };
   }, [statScope]);
-
-  // Schulzahlen je Standort (für die Seitenleiste).
-  const sidebarData: SidebarData = useMemo(() => {
-    const counts: Record<string, number> = {};
-    let ohneCount = 0;
-    for (const s of schulen) {
-      if (s.standort_id) counts[s.standort_id] = (counts[s.standort_id] ?? 0) + 1;
-      else ohneCount++;
-    }
-    return {
-      standorte,
-      vorgeschlagen,
-      counts,
-      ohneCount,
-      total: schulen.length,
-    };
-  }, [schulen, standorte, vorgeschlagen]);
 
   const activeStandortName = useMemo(() => {
     if (standortFilter === STANDORT_ALLE) return null;
@@ -224,22 +231,42 @@ export function DashboardClient({
   };
 
   const tabbed = useMemo(() => {
+    // Aktive Liste blendet erledigte Status aus; "Erledigt" zeigt nur diese.
+    const aktiv = bereichSchulen.filter((s) => !istErledigt(s));
     switch (tab) {
       case "meine":
-        return mine;
+        return mine.filter((s) => !istErledigt(s));
       case "faellig":
-        return schulen.filter(
+        return aktiv.filter(
           (s) => isDueToday(s.wiedervorlage_am) || isOverdue(s.wiedervorlage_am),
         );
       case "woche":
-        return schulen.filter((s) => isDueThisWeek(s.wiedervorlage_am));
-      case "koop":
-        return schulen.filter((s) => s.status === "Kooperation");
+        return aktiv.filter((s) => isDueThisWeek(s.wiedervorlage_am));
+      case "erledigt":
+        return bereichSchulen.filter(istErledigt);
       case "alle":
       default:
-        return schulen;
+        return aktiv;
     }
-  }, [tab, mine, schulen]);
+  }, [tab, mine, bereichSchulen]);
+
+  // Schulzahlen je Standort für die Seitenleiste – bezogen auf den aktuellen
+  // Reiter (Bereich + aktiv/erledigt), damit Badges zur Ansicht passen.
+  const sidebarData: SidebarData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    let ohneCount = 0;
+    for (const s of tabbed) {
+      if (s.standort_id) counts[s.standort_id] = (counts[s.standort_id] ?? 0) + 1;
+      else ohneCount++;
+    }
+    return {
+      standorte,
+      vorgeschlagen,
+      counts,
+      ohneCount,
+      total: tabbed.length,
+    };
+  }, [tabbed, standorte, vorgeschlagen]);
 
   // Alle Filter AUSSER der Schulart-Kategorie – Basis für die Tab-Zählung.
   const preSchulart = useMemo(() => {
@@ -281,11 +308,12 @@ export function DashboardClient({
   }, [preSchulart]);
 
   const filtered = useMemo(() => {
-    if (schulartFilter === "all") return preSchulart;
+    // Schulart-Kategorien gibt es nur im Schulen-Bereich.
+    if (bereich !== "schule" || schulartFilter === "all") return preSchulart;
     return preSchulart.filter(
       (s) => schulartKategorie(s.schulart) === schulartFilter,
     );
-  }, [preSchulart, schulartFilter]);
+  }, [preSchulart, schulartFilter, bereich]);
 
   // Auswahl-Status bezogen auf die aktuell gefilterten Schulen.
   const allFilteredSelected =
@@ -370,10 +398,40 @@ export function DashboardClient({
           admin && selected.size > 0 && "pb-28",
         )}
       >
+        {/* Bereich-Umschalter: Schulen / Soziale Träger */}
+        <div className="inline-flex rounded-lg border p-0.5">
+          <button
+            type="button"
+            onClick={() => changeBereich("schule")}
+            className={cn(
+              "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+              bereich === "schule"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            Schulen
+          </button>
+          <button
+            type="button"
+            onClick={() => changeBereich("traeger")}
+            className={cn(
+              "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+              bereich === "traeger"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            Soziale Träger
+          </button>
+        </div>
+
         {/* Statistik-Kacheln */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard
-            label={admin ? "Schulen gesamt" : "Meine Schulen"}
+            label={
+              admin ? `${nomen} gesamt` : `Meine ${nomen}`
+            }
             value={stats.mine}
             icon={School}
             accent="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"
@@ -401,12 +459,12 @@ export function DashboardClient({
             }
           />
           <StatCard
-            label="Kooperationen"
-            value={stats.koop}
+            label="Erledigt"
+            value={stats.erledigt}
             icon={Handshake}
             accent="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200"
-            active={tab === "koop"}
-            onClick={() => setTab("koop")}
+            active={tab === "erledigt"}
+            onClick={() => setTab("erledigt")}
           />
         </div>
 
@@ -445,8 +503,8 @@ export function DashboardClient({
             <TabsTrigger value="meine">Meine</TabsTrigger>
             <TabsTrigger value="faellig">Heute fällig</TabsTrigger>
             <TabsTrigger value="woche">Diese Woche</TabsTrigger>
-            <TabsTrigger value="koop">Kooperationen</TabsTrigger>
-            <TabsTrigger value="alle">Alle</TabsTrigger>
+            <TabsTrigger value="alle">Aktiv</TabsTrigger>
+            <TabsTrigger value="erledigt">Erledigt</TabsTrigger>
           </TabsList>
         </Tabs>
 
@@ -468,7 +526,7 @@ export function DashboardClient({
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Schule oder Stadt suchen…"
+              placeholder={`${nomenSg} oder Stadt suchen…`}
               className="pl-9"
             />
           </div>
@@ -546,27 +604,29 @@ export function DashboardClient({
           </div>
         </div>
 
-        {/* Schulart-Kategorien */}
-        <Tabs
-          value={schulartFilter}
-          onValueChange={(v) => setSchulartFilter(v as SchulartKategorie | "all")}
-        >
-          <TabsList className="flex w-full flex-wrap">
-            <TabsTrigger value="all">
-              Alle
-              <SchulartCount n={schulartCounts.all} active={schulartFilter === "all"} />
-            </TabsTrigger>
-            {SCHULART_KATEGORIEN.map((k) => (
-              <TabsTrigger key={k.value} value={k.value}>
-                {k.label}
-                <SchulartCount
-                  n={schulartCounts[k.value]}
-                  active={schulartFilter === k.value}
-                />
+        {/* Schulart-Kategorien – nur im Schulen-Bereich */}
+        {bereich === "schule" && (
+          <Tabs
+            value={schulartFilter}
+            onValueChange={(v) => setSchulartFilter(v as SchulartKategorie | "all")}
+          >
+            <TabsList className="flex w-full flex-wrap">
+              <TabsTrigger value="all">
+                Alle
+                <SchulartCount n={schulartCounts.all} active={schulartFilter === "all"} />
               </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+              {SCHULART_KATEGORIEN.map((k) => (
+                <TabsTrigger key={k.value} value={k.value}>
+                  {k.label}
+                  <SchulartCount
+                    n={schulartCounts[k.value]}
+                    active={schulartFilter === k.value}
+                  />
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        )}
 
         {/* Markierungs-Toolbar: Farbfilter + Legende */}
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -618,14 +678,14 @@ export function DashboardClient({
         {/* Liste */}
         <div>
           <p className="mb-2 text-sm text-muted-foreground">
-            {filtered.length} {filtered.length === 1 ? "Schule" : "Schulen"}
+            {filtered.length} {filtered.length === 1 ? nomenSg : nomen}
             {activeStandortName && (
               <> · {activeStandortName}</>
             )}
           </p>
           {filtered.length === 0 ? (
             <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
-              Keine Schulen in dieser Ansicht.
+              Keine {nomen} in dieser Ansicht.
             </div>
           ) : view === "liste" ? (
             <SchulTable

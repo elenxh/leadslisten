@@ -151,6 +151,7 @@ export async function importSchulen(
         ...stammdaten(row),
         status: row.status || "Neu", // Spalte K, sonst Default
         erstkontakt_am: row.erstkontakt, // Spalte J (dd.mm.yyyy)
+        typ: row.typ, // 'schule' | 'traeger' (aus Schulart/Sheet)
         // wiedervorlage_am bleibt beim Import leer
         zustaendig: payload.zustaendigId || null,
         standort_id: standortId,

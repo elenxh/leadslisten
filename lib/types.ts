@@ -11,6 +11,8 @@ export type SchulStatus =
   | "Wiedervorlage"
   | "Kooperation";
 
+export type SchulTyp = "schule" | "traeger";
+
 export type AnrufTyp = "telefonat" | "mail" | "vor_ort" | "sonstiges";
 
 export type StandortStatus = "aktiv" | "vorgeschlagen";
@@ -63,6 +65,7 @@ export interface Schule {
   zustaendig: string | null; // FK -> leitungen.id
   standort_id: string | null; // FK -> standorte.id
   markierung_farbe: string | null; // persönliche Farbmarkierung
+  typ: SchulTyp; // 'schule' | 'traeger'
 }
 
 export interface FarbLegende {
