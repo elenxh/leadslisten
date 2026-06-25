@@ -32,6 +32,7 @@ import {
 } from "@/lib/excel-import";
 import { importSchulen, type ImportResult } from "./actions";
 import { createStandort } from "@/app/standorte/actions";
+import { formatDate } from "@/lib/dates";
 import type { Leitung, Standort } from "@/lib/types";
 
 const UNASSIGNED = "__none__";
@@ -242,6 +243,12 @@ export function ImportClient({
             ))}
           </div>
 
+          {/* Erkennungs-Kontrolle für Spalte J/K */}
+          <p className="text-xs text-muted-foreground">
+            Erkannt aus Datei: {allRows.filter((r) => r.erstkontakt).length} ×
+            Erstkontakt-Datum, {allRows.filter((r) => r.status).length} × Status.
+          </p>
+
           {/* Preview-Tabelle (erste 10) */}
           <Card>
             <CardContent className="overflow-x-auto p-0">
@@ -250,15 +257,14 @@ export function ImportClient({
                   <tr>
                     <th className="px-3 py-2 font-medium">Schule</th>
                     <th className="px-3 py-2 font-medium">Stadt</th>
-                    <th className="px-3 py-2 font-medium">Ring</th>
                     <th className="px-3 py-2 font-medium">Schulart</th>
-                    <th className="px-3 py-2 font-medium">Ansprechpartner</th>
-                    <th className="px-3 py-2 font-medium">Telefon</th>
+                    <th className="px-3 py-2 font-medium">Erstkontakt</th>
+                    <th className="px-3 py-2 font-medium">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {allRows.slice(0, 10).map((r, i) => {
-                    const { stadt, ring } = deriveOrtUndRing(r.bezirk);
+                    const { stadt } = deriveOrtUndRing(r.bezirk);
                     return (
                       <tr key={i} className="border-b last:border-0">
                         <td className="px-3 py-2">
@@ -268,16 +274,11 @@ export function ImportClient({
                           </div>
                         </td>
                         <td className="px-3 py-2">{stadt ?? "—"}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">
-                          {ring == null ? (
-                            <span className="text-muted-foreground">—</span>
-                          ) : (
-                            `Ring ${ring}`
-                          )}
-                        </td>
                         <td className="px-3 py-2">{r.schulart ?? "—"}</td>
-                        <td className="px-3 py-2">{r.ansprechpartner ?? "—"}</td>
-                        <td className="px-3 py-2">{r.tel ?? "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          {r.erstkontakt ? formatDate(r.erstkontakt) : "—"}
+                        </td>
+                        <td className="px-3 py-2">{r.status ?? "—"}</td>
                       </tr>
                     );
                   })}

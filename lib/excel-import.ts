@@ -59,12 +59,28 @@ function parseDateCell(v: unknown): string | null {
   return null;
 }
 
+// Mappt den Status-Text aus Spalte K auf einen der 7 erlaubten Werte.
+// Tolerant ggü. Schreibweisen/Varianten; unbekannt -> null (Default 'Neu').
 function normalizeStatus(v: string | null): string | null {
   if (!v) return null;
-  const hit = STATUS_VALUES.find(
-    (s) => s.toLowerCase() === v.trim().toLowerCase(),
-  );
-  return hit ?? null;
+  const s = v.trim().toLowerCase();
+  if (!s) return null;
+
+  // exakte (case-insensitive) Treffer zuerst
+  const exact = STATUS_VALUES.find((x) => x.toLowerCase() === s);
+  if (exact) return exact;
+
+  if (s.includes("nicht erreich")) return "Nicht erreichbar";
+  if (s.includes("konzept") || s.includes("weitergeleitet"))
+    return "Konzept wird weitergeleitet";
+  if (s.includes("anderer anbieter") || s === "anbieter")
+    return "Anderer Anbieter";
+  if (s.includes("kein interesse") || s === "kein") return "Kein Interesse";
+  if (s.includes("kooperation") || s === "koop") return "Kooperation";
+  if (s.includes("wiedervorlage") || s === "wv" || s.includes("gespräch") || s.includes("gespraech"))
+    return "Wiedervorlage";
+  if (s === "neu") return "Neu";
+  return null;
 }
 
 export interface ParsedSheet {
@@ -88,7 +104,29 @@ function cell(row: unknown[], idx: number): string | null {
   return s.length ? s : null;
 }
 
+// Sucht in den Kopfzeilen (vor den Daten) die Spalte, deren Text zum Muster
+// passt; sonst Fallback-Index.
+function findColumn(
+  rows: unknown[][],
+  pattern: RegExp,
+  fallback: number,
+): number {
+  for (let i = 0; i < Math.min(DATA_START_ROW + 1, rows.length); i++) {
+    const r = rows[i] ?? [];
+    for (let c = 0; c < r.length; c++) {
+      const v = r[c];
+      if (v != null && pattern.test(String(v))) return c;
+    }
+  }
+  return fallback;
+}
+
 function parseSheet(rows: unknown[][], sheetName: string): RawSchule[] {
+  // Spalten J/K können je nach Datei leicht verschoben sein -> per Header
+  // erkennen, sonst auf die Standardpositionen (9/10) zurückfallen.
+  const erstkontaktCol = findColumn(rows, /erstkontakt/i, 9);
+  const statusCol = findColumn(rows, /^\s*status\b/i, 10);
+
   const out: RawSchule[] = [];
   for (let i = DATA_START_ROW; i < rows.length; i++) {
     const row = rows[i] ?? [];
@@ -104,8 +142,8 @@ function parseSheet(rows: unknown[][], sheetName: string): RawSchule[] {
       mail: cell(row, 6), // G
       tel: cell(row, 7), // H
       notiz: cell(row, 8), // I -> notiz_original
-      erstkontakt: parseDateCell(row[9]), // J -> erstkontakt_am
-      status: normalizeStatus(cell(row, 10)), // K -> status
+      erstkontakt: parseDateCell(row[erstkontaktCol]), // J -> erstkontakt_am
+      status: normalizeStatus(cell(row, statusCol)), // K -> status
     });
   }
   return out;

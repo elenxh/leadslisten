@@ -86,21 +86,33 @@ export async function importSchulen(
   // Bestehende Schulen laden, um Duplikate (Name + Bezirk) zu erkennen.
   const { data: existing, error: loadErr } = await admin
     .from("schulen")
-    .select("id, name, bezirk, standort_id");
+    .select("id, name, bezirk, standort_id, status, erstkontakt_am");
   if (loadErr) {
     return { ok: false, error: `Laden fehlgeschlagen: ${loadErr.message}` };
   }
 
-  const byKey = new Map<string, { id: string; standort_id: string | null }>();
+  const byKey = new Map<
+    string,
+    {
+      id: string;
+      standort_id: string | null;
+      status: string | null;
+      erstkontakt_am: string | null;
+    }
+  >();
   for (const s of (existing ?? []) as {
     id: string;
     name: string;
     bezirk: string | null;
     standort_id: string | null;
+    status: string | null;
+    erstkontakt_am: string | null;
   }[]) {
     byKey.set(normalizeKey(s.name, s.bezirk), {
       id: s.id,
       standort_id: s.standort_id,
+      status: s.status,
+      erstkontakt_am: s.erstkontakt_am,
     });
   }
 
@@ -119,11 +131,19 @@ export async function importSchulen(
 
     const match = byKey.get(key);
     if (match) {
-      // Nur Stammdaten aktualisieren – Akquise-Daten bleiben unberührt.
-      // Standort wird nur gefüllt, wenn die Schule noch keinen hat
-      // (überschreibt also keine bestehende Zuordnung).
+      // Stammdaten aktualisieren – Akquise-Daten bleiben grundsätzlich unberührt.
       const data: Record<string, unknown> = stammdaten(row);
+      // Standort nur füllen, wenn die Schule noch keinen hat.
       if (standortId && !match.standort_id) data.standort_id = standortId;
+      // Erstkontakt nur füllen, wenn noch leer (gesetzte Werte bleiben).
+      if (row.erstkontakt && !match.erstkontakt_am) {
+        data.erstkontakt_am = row.erstkontakt;
+      }
+      // Status aus der Datei übernehmen, solange er noch 'Neu'/leer ist
+      // (echte Akquise-Status werden NICHT überschrieben).
+      if (row.status && (!match.status || match.status === "Neu")) {
+        data.status = row.status;
+      }
       toUpdate.push({ id: match.id, data });
     } else {
       toInsert.push({
