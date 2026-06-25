@@ -128,8 +128,8 @@ function compareSchulen(
   }
 
   // kontakt_alt / kontakt_neu
-  const ta = ampelInfo(a.erstkontakt_am, a.wiedervorlage_am).tage;
-  const tb = ampelInfo(b.erstkontakt_am, b.wiedervorlage_am).tage;
+  const ta = ampelInfo(a.erstkontakt_am, a.wiedervorlage_am, a.letzter_anruf_am).tage;
+  const tb = ampelInfo(b.erstkontakt_am, b.wiedervorlage_am, b.letzter_anruf_am).tage;
   if (ta == null && tb == null) return byName();
   if (ta == null) return 1; // ohne gültiges Datum ans Ende
   if (tb == null) return -1;

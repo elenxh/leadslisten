@@ -321,6 +321,7 @@ export function SchuleDetail({
             <AmpelBadge
               erstkontakt={schule.erstkontakt_am}
               wiedervorlage={schule.wiedervorlage_am}
+              letzterAnruf={schule.letzter_anruf_am}
             />
             {schule.leitung && (
               <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -429,7 +430,7 @@ export function SchuleDetail({
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-3">
           <CardTitle className="text-base">Akquise</CardTitle>
-          {canEdit && (
+          {canEditSchulart && (
             <AnrufDialog
               schuleId={schule.id}
               leitungId={me.id}

@@ -78,6 +78,7 @@ export function SchulCard({
             <AmpelBadge
               erstkontakt={schule.erstkontakt_am}
               wiedervorlage={schule.wiedervorlage_am}
+              letzterAnruf={schule.letzter_anruf_am}
             />
             <StatusBadge status={schule.status} />
             {schule.schulart && (
