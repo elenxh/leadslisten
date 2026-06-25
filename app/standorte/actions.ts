@@ -231,6 +231,62 @@ export async function setSchuleStandort(
   return { ok: true };
 }
 
+/**
+ * Ändert die Schulart EINER Schule.
+ * Berechtigung: Admin immer; eine Leitung nur, wenn die Schule zu einem
+ * Standort gehört, der ihr über leitung_standort zugeordnet ist.
+ * Es wird ausschließlich die Spalte `schulart` geschrieben.
+ */
+export async function updateSchulart(
+  schuleId: string,
+  schulart: string,
+): Promise<SimpleResult> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: "Nicht angemeldet." };
+
+  const ac = adminClientOrError();
+  if (!ac.ok) return ac;
+
+  if (!user.isAdmin) {
+    // Standort der Schule laden und Zugehörigkeit der Leitung prüfen.
+    const { data: schule } = await ac.admin
+      .from("schulen")
+      .select("standort_id")
+      .eq("id", schuleId)
+      .single();
+    if (!schule) return { ok: false, error: "Schule nicht gefunden." };
+    if (!schule.standort_id) {
+      return {
+        ok: false,
+        error: "Diese Schule gehört zu keinem deiner Standorte.",
+      };
+    }
+    const { data: rel } = await ac.admin
+      .from("leitung_standort")
+      .select("standort_id")
+      .eq("leitung_id", user.id)
+      .eq("standort_id", schule.standort_id)
+      .maybeSingle();
+    if (!rel) {
+      return {
+        ok: false,
+        error: "Keine Berechtigung für den Standort dieser Schule.",
+      };
+    }
+  }
+
+  const clean = schulart.trim();
+  const { error } = await ac.admin
+    .from("schulen")
+    .update({ schulart: clean || null })
+    .eq("id", schuleId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/dashboard");
+  revalidatePath(`/schule/${schuleId}`);
+  return { ok: true };
+}
+
 export type BulkResult =
   | { ok: true; count: number }
   | { ok: false; error: string };

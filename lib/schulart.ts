@@ -47,3 +47,16 @@ export function schulartKategorie(
 export function schulartKategorieLabel(k: SchulartKategorie): string {
   return SCHULART_KATEGORIEN.find((x) => x.value === k)?.label ?? k;
 }
+
+// Gängige Berliner Schularten für das Bearbeiten-Dropdown.
+export const SCHULART_OPTIONS: string[] = [
+  "Grundschule",
+  "Integrierte Sekundarschule",
+  "Gymnasium",
+  "Gemeinschaftsschule",
+  "Oberschule",
+  "Berufsfachschule",
+  "Berufsschule",
+  "Förderschule",
+  "Sonstige",
+];

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -33,6 +33,8 @@ import { LeitungAvatar } from "@/components/app/leitung-avatar";
 import { AnrufDialog } from "@/components/app/anruf-dialog";
 import { createClient } from "@/lib/supabase/client";
 import { STATUS_LIST, anrufTypLabel } from "@/lib/status";
+import { SCHULART_OPTIONS } from "@/lib/schulart";
+import { updateSchulart } from "@/app/standorte/actions";
 import { ringLabel } from "@/lib/berlin-ring";
 import { formatDateTime } from "@/lib/dates";
 import type {
@@ -48,6 +50,7 @@ export function SchuleDetail({
   anrufe,
   me,
   canEdit,
+  canEditSchulart,
   leitungen,
   standorte,
 }: {
@@ -55,6 +58,7 @@ export function SchuleDetail({
   anrufe: AnrufMitLeitung[];
   me: Leitung;
   canEdit: boolean;
+  canEditSchulart: boolean;
   leitungen: Pick<Leitung, "id" | "name" | "kuerzel" | "farbe">[];
   standorte: Standort[];
 }) {
@@ -67,6 +71,34 @@ export function SchuleDetail({
   const [zustaendig, setZustaendig] = useState(schule.zustaendig ?? "");
   const [standort, setStandort] = useState(schule.standort_id ?? "");
   const [saving, setSaving] = useState(false);
+
+  // Schulart wird sofort bei Auswahl gespeichert (eigene Server-Action).
+  const [schulartVal, setSchulartVal] = useState(schule.schulart ?? "");
+  const [savingSchulart, setSavingSchulart] = useState(false);
+  const schulartOptions = useMemo(() => {
+    const opts = [...SCHULART_OPTIONS];
+    if (schule.schulart && !opts.includes(schule.schulart)) {
+      opts.unshift(schule.schulart);
+    }
+    return opts;
+  }, [schule.schulart]);
+
+  async function changeSchulart(v: string) {
+    const prev = schulartVal;
+    setSchulartVal(v);
+    setSavingSchulart(true);
+    const res = await updateSchulart(schule.id, v);
+    setSavingSchulart(false);
+    if (!res.ok) {
+      setSchulartVal(prev);
+      toast.error("Schulart konnte nicht gespeichert werden", {
+        description: res.error,
+      });
+      return;
+    }
+    toast.success("Schulart aktualisiert");
+    router.refresh();
+  }
 
   const dirty =
     status !== schule.status ||
@@ -254,6 +286,41 @@ export function SchuleDetail({
                   disabled={!canEdit}
                 />
               </div>
+            )}
+          </div>
+
+          {/* Schulart – editierbar für Admin + zuständige Standort-Leitung;
+              speichert sofort bei Auswahl. */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              Schulart
+              {savingSchulart && (
+                <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+              )}
+            </Label>
+            {canEditSchulart ? (
+              <Select
+                value={schulartVal}
+                onValueChange={(v) => changeSchulart((v as string) ?? "")}
+                disabled={savingSchulart}
+              >
+                <SelectTrigger className="w-full sm:max-w-xs">
+                  <SelectValue placeholder="Schulart wählen">
+                    {(v: string) => v || "Schulart wählen"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {schulartOptions.map((o) => (
+                    <SelectItem key={o} value={o}>
+                      {o}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {schule.schulart ?? "—"}
+              </p>
             )}
           </div>
 
