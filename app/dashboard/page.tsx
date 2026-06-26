@@ -24,13 +24,28 @@ export default async function DashboardPage() {
   const admin = me.rolle === "admin";
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("schulen")
-    .select("*, leitung:zustaendig(id, name, kuerzel, farbe)")
-    .order("wiedervorlage_am", { ascending: true, nullsFirst: false })
-    .order("name", { ascending: true });
-
-  const schulen = (data ?? []) as unknown as SchuleMitLeitung[];
+  // ALLE Schulen paginiert laden – Supabase/PostgREST liefert max. 1000 Zeilen
+  // pro Request; ohne Pagination würden Schulen abgeschnitten (Liste + Suche
+  // unvollständig). In 1000er-Blöcken über range() vollständig nachladen.
+  const PAGE = 1000;
+  const MAX_PAGES = 100; // Sicherheitskappe (= 100.000 Zeilen)
+  const schulen: SchuleMitLeitung[] = [];
+  let error: { message: string } | null = null;
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const from = page * PAGE;
+    const { data, error: pageErr } = await supabase
+      .from("schulen")
+      .select("*, leitung:zustaendig(id, name, kuerzel, farbe)")
+      .order("name", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (pageErr) {
+      error = pageErr;
+      break;
+    }
+    const batch = (data ?? []) as unknown as SchuleMitLeitung[];
+    schulen.push(...batch);
+    if (batch.length < PAGE) break; // letzte Seite erreicht
+  }
 
   // Standorte für die Seitenleiste laden.
   let standorte: Standort[] = [];
