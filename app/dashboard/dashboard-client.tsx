@@ -660,28 +660,31 @@ export function DashboardClient({
         </Tabs>
 
         {/* Filter */}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          {admin && (
-            <label className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm text-muted-foreground sm:py-0 sm:h-9">
-              <SelectCheckbox
-                checked={allFilteredSelected}
-                indeterminate={someFilteredSelected}
-                onCheckedChange={toggleAllFiltered}
-                label="Alle sichtbaren Schulen auswählen"
-              />
-              <span className="whitespace-nowrap">Alle</span>
-            </label>
-          )}
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <div className="space-y-2">
+          {/* Zeile 1: großes, prominentes Suchfeld */}
+          <div className="relative">
+            <Search className="absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={`${nomenSg} oder Stadt suchen…`}
-              className="pl-9"
+              placeholder={`${nomenSg}, Bezirk, Telefon, Ansprechpartner suchen…`}
+              className="h-12 w-full pl-11 text-base"
             />
           </div>
-          <div className="flex gap-2">
+
+          {/* Zeile 2: Filter / Sortierung / Ansicht */}
+          <div className="flex flex-wrap items-center gap-2">
+            {admin && (
+              <label className="flex h-9 items-center gap-2 rounded-lg border px-3 text-sm text-muted-foreground">
+                <SelectCheckbox
+                  checked={allFilteredSelected}
+                  indeterminate={someFilteredSelected}
+                  onCheckedChange={toggleAllFiltered}
+                  label="Alle sichtbaren Schulen auswählen"
+                />
+                <span className="whitespace-nowrap">Alle</span>
+              </label>
+            )}
             <Select value={statusFilter} onValueChange={(v) => setStatusFilter((v as string) ?? "all")}>
               <SelectTrigger className="w-full min-w-32 sm:w-40">
                 <SelectValue placeholder="Status">
