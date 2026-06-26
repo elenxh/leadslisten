@@ -85,6 +85,10 @@ type Bereich = "schule" | "traeger";
 
 const VIEW_STORAGE_KEY = "leadslisten:schul-view";
 
+// Schriftgröße der Schulnamen in der Liste (4 Stufen), in localStorage gemerkt.
+const NAME_SIZE_KEY = "leadslisten:name-size";
+const NAME_SIZES = ["text-sm", "text-base", "text-lg", "text-xl"];
+
 // Diese Status gelten als erledigt: aus der aktiven Liste/Zählung ausblenden.
 const ERLEDIGT_STATUS: readonly string[] = [
   "Kooperationsabschluss",
@@ -216,6 +220,23 @@ export function DashboardClient({
     setView(next);
     window.localStorage.setItem(VIEW_STORAGE_KEY, next);
   }
+
+  // Schriftgröße der Schulnamen (Index in NAME_SIZES). Default = Stufe 1.
+  const [nameSize, setNameSize] = useState(1);
+  useEffect(() => {
+    const stored = Number(window.localStorage.getItem(NAME_SIZE_KEY));
+    if (Number.isInteger(stored) && stored >= 0 && stored < NAME_SIZES.length) {
+      setNameSize(stored);
+    }
+  }, []);
+  function changeNameSize(delta: number) {
+    setNameSize((cur) => {
+      const next = Math.min(NAME_SIZES.length - 1, Math.max(0, cur + delta));
+      window.localStorage.setItem(NAME_SIZE_KEY, String(next));
+      return next;
+    });
+  }
+  const nameClass = NAME_SIZES[nameSize];
 
   // Massen-Auswahl (nur Admin)
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -763,6 +784,30 @@ export function DashboardClient({
               </SelectContent>
             </Select>
 
+            {/* Schriftgröße der Namen */}
+            <div className="inline-flex shrink-0 items-center rounded-lg border">
+              <button
+                type="button"
+                onClick={() => changeNameSize(-1)}
+                disabled={nameSize === 0}
+                aria-label="Schrift der Namen kleiner"
+                title="Namen kleiner"
+                className="rounded-l-lg px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+              >
+                A−
+              </button>
+              <button
+                type="button"
+                onClick={() => changeNameSize(1)}
+                disabled={nameSize === NAME_SIZES.length - 1}
+                aria-label="Schrift der Namen größer"
+                title="Namen größer"
+                className="rounded-r-lg px-2 py-1.5 text-base font-semibold text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+              >
+                A+
+              </button>
+            </div>
+
             {/* Ansicht umschalten: Kachel / Liste */}
             <div className="inline-flex shrink-0 items-center rounded-lg border p-0.5">
               <button
@@ -898,6 +943,7 @@ export function DashboardClient({
               isAdmin={admin}
               editableStandortIds={editableStandortIds}
               legendeByStandort={legendeByStandort}
+              nameClass={nameClass}
             />
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
@@ -914,6 +960,7 @@ export function DashboardClient({
                     (!!s.standort_id && editableStandortIds.has(s.standort_id))
                   }
                   legende={legendeByStandort[s.standort_id ?? ""]}
+                  nameClass={nameClass}
                 />
               ))}
             </div>

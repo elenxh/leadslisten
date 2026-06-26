@@ -10,8 +10,10 @@ export interface StatusMeta {
 // Einheitliches, NEUTRALES Styling für alle Werte (keine Statusfarben –
 // die einzige Farbcodierung in der App ist die Tage-Ampel). Der Status dient
 // nur der Information und dem Filtern.
+// Kräftig, aber NEUTRAL (keine Ampelfarben) – stärkerer Kontrast + Rahmen,
+// damit der Pipeline-Status auf einen Blick erfassbar ist.
 const NEUTRAL_BADGE =
-  "bg-muted text-muted-foreground dark:bg-muted dark:text-muted-foreground";
+  "border-foreground/30 bg-foreground/10 text-foreground dark:border-foreground/35 dark:bg-foreground/15";
 
 export const STATUS_LIST: StatusMeta[] = [
   { value: "Neu", label: "Neu", badge: NEUTRAL_BADGE },
