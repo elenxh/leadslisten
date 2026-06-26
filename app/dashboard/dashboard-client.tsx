@@ -508,7 +508,7 @@ export function DashboardClient({
   }
 
   return (
-    <div className="mx-auto flex max-w-6xl gap-6 px-4 py-5">
+    <div className="mx-auto flex max-w-7xl gap-6 px-4 py-5">
       {/* Sidebar – Desktop */}
       <aside className="hidden w-56 shrink-0 lg:block">
         <div className="sticky top-20">
