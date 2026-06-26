@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatCard } from "@/components/app/stat-card";
+import { AmpelMiniLegende } from "@/components/app/ampel";
 import { SchulCard } from "@/components/app/schul-card";
 import { SchulTable } from "@/components/app/schul-table";
 import { SelectCheckbox } from "@/components/app/select-checkbox";
@@ -578,8 +579,9 @@ export function DashboardClient({
           )}
         </div>
 
-        {/* Statistik-Kacheln */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {/* Statistik-Kacheln + feste Ampel-Mini-Legende rechts daneben */}
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch">
+        <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard
             label={
               admin ? `${nomen} gesamt` : `Meine ${nomen}`
@@ -618,6 +620,8 @@ export function DashboardClient({
             active={tab === "erledigt"}
             onClick={() => setTab("erledigt")}
           />
+        </div>
+          <AmpelMiniLegende className="shrink-0 lg:w-56" />
         </div>
 
         {/* Standort-Auswahl – Mobile */}
