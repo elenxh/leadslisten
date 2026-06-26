@@ -52,9 +52,10 @@ export function ampelInfo(
   const ref = candidates.reduce((a, b) => (a >= b ? a : b));
 
   const tage = daysSince(ref);
+  // Schwellen: 0–12 grün, 13–25 gelb, 26+ rot.
   let stufe: AmpelStufe = "gruen";
-  if (tage >= 15) stufe = "rot";
-  else if (tage >= 8) stufe = "gelb";
+  if (tage >= 26) stufe = "rot";
+  else if (tage >= 13) stufe = "gelb";
   return { stufe, tage };
 }
 

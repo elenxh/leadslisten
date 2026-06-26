@@ -61,7 +61,7 @@ import {
   type SchulartKategorie,
 } from "@/lib/schulart";
 import { RING_OPTIONS, ringLabel } from "@/lib/berlin-ring";
-import { isDueThisWeek, isDueToday, isOverdue } from "@/lib/dates";
+import { isDueThisWeek } from "@/lib/dates";
 import { ampelInfo } from "@/lib/ampel";
 import type {
   FarbLegende,
@@ -93,6 +93,12 @@ const ERLEDIGT_STATUS: readonly string[] = [
 ];
 const istErledigt = (s: SchuleMitLeitung) =>
   ERLEDIGT_STATUS.includes(s.status);
+
+// "Offen" = rote Ampel (26+ Tage seit letztem gültigen Kontakt). Grau (kein
+// gültiges Datum) zählt NICHT als offen. Nutzt die zentrale Ampel-Logik.
+const istOffen = (s: SchuleMitLeitung): boolean =>
+  ampelInfo(s.erstkontakt_am, s.wiedervorlage_am, s.letzter_anruf_am).stufe ===
+  "rot";
 
 // Ort für den Bezirks-Filter: bevorzugt Bezirk, sonst Stadt.
 const ortVon = (s: SchuleMitLeitung): string =>
@@ -310,9 +316,7 @@ export function DashboardClient({
     const aktiv = statScope.filter((s) => !istErledigt(s));
     return {
       mine: aktiv.length,
-      faellig: aktiv.filter(
-        (s) => isDueToday(s.wiedervorlage_am) || isOverdue(s.wiedervorlage_am),
-      ).length,
+      faellig: aktiv.filter(istOffen).length,
       wiedervorlage: aktiv.filter((s) => s.wiedervorlage_am != null).length,
       erledigt: statScope.filter(istErledigt).length,
     };
@@ -347,9 +351,7 @@ export function DashboardClient({
       case "meine":
         return mine.filter((s) => !istErledigt(s));
       case "faellig":
-        return aktiv.filter(
-          (s) => isDueToday(s.wiedervorlage_am) || isOverdue(s.wiedervorlage_am),
-        );
+        return aktiv.filter(istOffen);
       case "woche":
         return aktiv.filter((s) => isDueThisWeek(s.wiedervorlage_am));
       case "wiedervorlage":
@@ -593,7 +595,7 @@ export function DashboardClient({
             }}
           />
           <StatCard
-            label="Heute fällig"
+            label="Offen"
             value={stats.faellig}
             icon={CalendarClock}
             accent="bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-200"
@@ -652,7 +654,7 @@ export function DashboardClient({
         <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
           <TabsList className="flex w-full flex-wrap">
             <TabsTrigger value="meine">Meine</TabsTrigger>
-            <TabsTrigger value="faellig">Heute fällig</TabsTrigger>
+            <TabsTrigger value="faellig">Offen</TabsTrigger>
             <TabsTrigger value="woche">Diese Woche</TabsTrigger>
             <TabsTrigger value="alle">Aktiv</TabsTrigger>
             <TabsTrigger value="erledigt">Erledigt</TabsTrigger>
