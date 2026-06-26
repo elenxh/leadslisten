@@ -23,6 +23,7 @@ export function SchulTable({
   isAdmin,
   editableStandortIds,
   legendeByStandort,
+  nameClass,
 }: {
   schulen: SchuleMitLeitung[];
   showLeitung?: boolean;
@@ -32,6 +33,7 @@ export function SchulTable({
   isAdmin?: boolean;
   editableStandortIds?: Set<string>;
   legendeByStandort?: Record<string, Record<string, string>>;
+  nameClass?: string;
 }) {
   const canMark = (standortId: string | null) =>
     !!isAdmin || (!!standortId && !!editableStandortIds?.has(standortId));
@@ -44,7 +46,7 @@ export function SchulTable({
         <span className="min-w-0 flex-1">Schule</span>
         <span className="w-24 shrink-0">Stadt</span>
         <span className="w-36 shrink-0">Schulart</span>
-        <span className="w-32 shrink-0">Status</span>
+        <span className="w-40 shrink-0">Status</span>
         <span className="w-28 shrink-0">Kontakt</span>
         <span className="w-32 shrink-0">Telefon</span>
         {showLeitung && <span className="w-8 shrink-0" />}
@@ -91,7 +93,9 @@ export function SchulTable({
 
               {/* Schule (+ Stadt/Schulart/Ampel klein auf Mobile) */}
               <div className="min-w-0 flex-1">
-                <div className="truncate font-medium">{s.name}</div>
+                <div className={cn("truncate font-medium", nameClass)}>
+                  {s.name}
+                </div>
                 <div className="mt-0.5 flex items-center gap-2 sm:hidden">
                   <span className="truncate text-xs text-muted-foreground">
                     {[s.stadt, s.schulart].filter(Boolean).join(" · ") || "—"}
@@ -115,7 +119,7 @@ export function SchulTable({
               </span>
 
               {/* Status */}
-              <span className="w-auto shrink-0 sm:w-32">
+              <span className="w-auto shrink-0 sm:w-40">
                 <StatusBadge status={s.status} />
               </span>
 
