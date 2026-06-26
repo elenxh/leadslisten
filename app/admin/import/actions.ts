@@ -84,13 +84,34 @@ export async function importSchulen(
   const standortId = payload.standortId || null;
 
   // Bestehende Schulen laden, um Duplikate (Name + Bezirk) zu erkennen.
-  const { data: existing, error: loadErr } = await admin
-    .from("schulen")
-    .select(
-      "id, name, bezirk, standort_id, status, erstkontakt_am, wiedervorlage_am",
-    );
-  if (loadErr) {
-    return { ok: false, error: `Laden fehlgeschlagen: ${loadErr.message}` };
+  // WICHTIG: paginiert – Supabase liefert max. 1000 Zeilen/Request; sonst
+  // würden Duplikate jenseits 1000 nicht erkannt und doppelt importiert.
+  type ExistRow = {
+    id: string;
+    name: string;
+    bezirk: string | null;
+    standort_id: string | null;
+    status: string | null;
+    erstkontakt_am: string | null;
+    wiedervorlage_am: string | null;
+  };
+  const existing: ExistRow[] = [];
+  const LOAD_PAGE = 1000;
+  for (let page = 0; page < 200; page++) {
+    const from = page * LOAD_PAGE;
+    const { data, error: loadErr } = await admin
+      .from("schulen")
+      .select(
+        "id, name, bezirk, standort_id, status, erstkontakt_am, wiedervorlage_am",
+      )
+      .order("id", { ascending: true })
+      .range(from, from + LOAD_PAGE - 1);
+    if (loadErr) {
+      return { ok: false, error: `Laden fehlgeschlagen: ${loadErr.message}` };
+    }
+    const batch = (data ?? []) as ExistRow[];
+    existing.push(...batch);
+    if (batch.length < LOAD_PAGE) break;
   }
 
   const byKey = new Map<
@@ -103,15 +124,7 @@ export async function importSchulen(
       wiedervorlage_am: string | null;
     }
   >();
-  for (const s of (existing ?? []) as {
-    id: string;
-    name: string;
-    bezirk: string | null;
-    standort_id: string | null;
-    status: string | null;
-    erstkontakt_am: string | null;
-    wiedervorlage_am: string | null;
-  }[]) {
+  for (const s of existing) {
     byKey.set(normalizeKey(s.name, s.bezirk), {
       id: s.id,
       standort_id: s.standort_id,

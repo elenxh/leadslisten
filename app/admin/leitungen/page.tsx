@@ -16,21 +16,30 @@ export default async function LeitungenPage() {
 
   const supabase = await createClient();
 
-  const [
-    { data: leitungen },
-    { data: schulen },
-    { data: standorte },
-    { data: zuordnungen },
-  ] = await Promise.all([
-    supabase.from("leitungen").select("*").order("name"),
-    supabase.from("schulen").select("zustaendig"),
-    supabase.from("standorte").select("*").eq("status", "aktiv").order("name"),
-    supabase.from("leitung_standort").select("leitung_id, standort_id"),
-  ]);
+  const [{ data: leitungen }, { data: standorte }, { data: zuordnungen }] =
+    await Promise.all([
+      supabase.from("leitungen").select("*").order("name"),
+      supabase.from("standorte").select("*").eq("status", "aktiv").order("name"),
+      supabase.from("leitung_standort").select("leitung_id, standort_id"),
+    ]);
 
+  // Schul-Zählung paginiert (Supabase liefert max. 1000 Zeilen/Request).
   const schulCount: Record<string, number> = {};
-  for (const s of (schulen ?? []) as { zustaendig: string | null }[]) {
-    if (s.zustaendig) schulCount[s.zustaendig] = (schulCount[s.zustaendig] ?? 0) + 1;
+  const COUNT_PAGE = 1000;
+  for (let page = 0; page < 200; page++) {
+    const from = page * COUNT_PAGE;
+    const { data: batch } = await supabase
+      .from("schulen")
+      .select("zustaendig")
+      .order("id", { ascending: true })
+      .range(from, from + COUNT_PAGE - 1);
+    const rows = (batch ?? []) as { zustaendig: string | null }[];
+    for (const s of rows) {
+      if (s.zustaendig) {
+        schulCount[s.zustaendig] = (schulCount[s.zustaendig] ?? 0) + 1;
+      }
+    }
+    if (rows.length < COUNT_PAGE) break;
   }
 
   // leitung_id -> standort_id[]
