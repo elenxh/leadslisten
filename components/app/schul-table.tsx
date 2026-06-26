@@ -23,7 +23,6 @@ export function SchulTable({
   isAdmin,
   editableStandortIds,
   legendeByStandort,
-  nameClass,
 }: {
   schulen: SchuleMitLeitung[];
   showLeitung?: boolean;
@@ -33,7 +32,6 @@ export function SchulTable({
   isAdmin?: boolean;
   editableStandortIds?: Set<string>;
   legendeByStandort?: Record<string, Record<string, string>>;
-  nameClass?: string;
 }) {
   const canMark = (standortId: string | null) =>
     !!isAdmin || (!!standortId && !!editableStandortIds?.has(standortId));
@@ -45,10 +43,9 @@ export function SchulTable({
         <span className="w-4 shrink-0" />
         <span className="min-w-0 flex-1">Schule</span>
         <span className="w-24 shrink-0">Stadt</span>
-        <span className="w-36 shrink-0">Schulart</span>
+        <span className="w-32 shrink-0">Schulart</span>
         <span className="w-40 shrink-0">Status</span>
-        <span className="w-28 shrink-0">Kontakt</span>
-        <span className="w-32 shrink-0">Telefon</span>
+        <span className="w-24 shrink-0">Kontakt</span>
         {showLeitung && <span className="w-8 shrink-0" />}
       </div>
 
@@ -93,7 +90,7 @@ export function SchulTable({
 
               {/* Schule (+ Stadt/Schulart/Ampel klein auf Mobile) */}
               <div className="min-w-0 flex-1">
-                <div className={cn("truncate font-medium", nameClass)}>
+                <div className="font-semibold leading-snug break-words">
                   {s.name}
                 </div>
                 <div className="mt-0.5 flex items-center gap-2 sm:hidden">
@@ -114,7 +111,7 @@ export function SchulTable({
               </span>
 
               {/* Schulart – Desktop */}
-              <span className="hidden w-36 shrink-0 truncate text-muted-foreground sm:block">
+              <span className="hidden w-32 shrink-0 truncate text-muted-foreground sm:block">
                 {s.schulart ?? "—"}
               </span>
 
@@ -124,17 +121,12 @@ export function SchulTable({
               </span>
 
               {/* Kontakt-Ampel – Desktop */}
-              <span className="hidden w-28 shrink-0 sm:block">
+              <span className="hidden w-24 shrink-0 sm:block">
                 <AmpelBadge
                   erstkontakt={s.erstkontakt_am}
                   wiedervorlage={s.wiedervorlage_am}
                   letzterAnruf={s.letzter_anruf_am}
                 />
-              </span>
-
-              {/* Telefon – ab Desktop */}
-              <span className="hidden w-32 shrink-0 truncate text-muted-foreground sm:block">
-                {s.tel ?? "—"}
               </span>
 
               {/* Leitung – nur Admin */}
