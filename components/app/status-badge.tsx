@@ -15,7 +15,7 @@ export function StatusBadge({
     <Badge
       variant="secondary"
       className={cn(
-        "h-auto whitespace-normal border px-2.5 py-0.5 text-sm font-semibold",
+        "h-auto whitespace-nowrap border px-2.5 py-0.5 text-sm font-semibold",
         meta.badge,
         className,
       )}

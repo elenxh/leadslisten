@@ -38,13 +38,13 @@ export function SchulTable({
   return (
     <Card className="overflow-hidden p-0">
       {/* Kopfzeile – nur Desktop */}
-      <div className="hidden border-b bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground sm:flex sm:items-center sm:gap-3">
+      <div className="hidden border-b bg-muted/50 px-4 py-2 text-xs font-medium text-muted-foreground sm:flex sm:items-center sm:gap-5">
         {selectable && <span className="w-4 shrink-0" />}
         <span className="w-4 shrink-0" />
         <span className="min-w-0 flex-1">Schule</span>
-        <span className="w-20 shrink-0">Stadt</span>
-        <span className="w-28 shrink-0">Schulart</span>
-        <span className="w-36 shrink-0">Status</span>
+        <span className="w-16 shrink-0">Stadt</span>
+        <span className="w-24 shrink-0">Schulart</span>
+        <span className="w-52 shrink-0">Status</span>
         <span className="w-24 shrink-0">Kontakt</span>
         <span className="w-32 shrink-0">Telefon</span>
         {showLeitung && <span className="w-8 shrink-0" />}
@@ -58,7 +58,7 @@ export function SchulTable({
               key={s.id}
               href={`/schule/${s.id}`}
               className={cn(
-                "flex items-center gap-3 px-3 py-2.5 text-sm transition-colors hover:bg-muted/50",
+                "flex items-center gap-5 px-4 py-2.5 text-sm transition-colors hover:bg-muted/50",
                 selected && "bg-primary/5",
               )}
             >
@@ -107,17 +107,17 @@ export function SchulTable({
               </div>
 
               {/* Stadt – Desktop */}
-              <span className="hidden w-20 shrink-0 truncate text-muted-foreground sm:block">
+              <span className="hidden w-16 shrink-0 truncate text-muted-foreground sm:block">
                 {s.stadt ?? "—"}
               </span>
 
               {/* Schulart – Desktop */}
-              <span className="hidden w-28 shrink-0 truncate text-muted-foreground sm:block">
+              <span className="hidden w-24 shrink-0 truncate text-muted-foreground sm:block">
                 {s.schulart ?? "—"}
               </span>
 
               {/* Status */}
-              <span className="w-auto shrink-0 sm:w-36">
+              <span className="w-auto shrink-0 sm:w-52">
                 <StatusBadge status={s.status} />
               </span>
 
