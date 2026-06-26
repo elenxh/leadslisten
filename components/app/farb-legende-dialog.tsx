@@ -18,6 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { MARKIERUNG_FARBEN } from "@/lib/markierung";
+import { AMPEL_LEGENDE } from "@/lib/ampel";
 import { saveFarbLegende } from "@/app/standorte/actions";
 
 /**
@@ -76,16 +77,47 @@ export function FarbLegendeDialog({
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Farb-Legende</DialogTitle>
+          <DialogTitle>Legende</DialogTitle>
           <DialogDescription>
-            {standortId
-              ? `Bedeutung der Farben für „${standortName}". Gilt für alle Leitungen dieses Standorts.`
-              : "Wähle links einen konkreten Standort, um dessen Legende zu bearbeiten."}
+            Bedeutung der Ampel-Farben und der Schul-Markierungen.
           </DialogDescription>
         </DialogHeader>
 
+        {/* Ampel: Tage seit letztem gültigen Kontakt (zentrale Logik). */}
+        <div className="space-y-2 py-1">
+          <p className="text-xs font-medium text-foreground">
+            Ampel – Tage seit letztem Kontakt
+          </p>
+          <ul className="space-y-1.5">
+            {AMPEL_LEGENDE.map((a) => (
+              <li key={a.stufe} className="flex items-center gap-3 text-sm">
+                <span
+                  className={cn("size-3 shrink-0 rounded-full", a.dot)}
+                  aria-hidden
+                />
+                <span className="w-24 shrink-0 font-medium">{a.bereich}</span>
+                <span className="text-muted-foreground">{a.bedeutung}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* Markierungen: pro Standort frei benannte Farben. */}
+        <div className="space-y-2 border-t pt-3">
+          <p className="text-xs font-medium text-foreground">
+            Markierungen
+            {standortName ? ` – „${standortName}"` : ""}
+          </p>
+          {!standortId && (
+            <p className="text-xs text-muted-foreground">
+              Wähle links einen konkreten Standort, um dessen Markierungs-Legende
+              zu sehen und zu bearbeiten.
+            </p>
+          )}
+        </div>
+
         {standortId && (
-          <div className="space-y-2 py-2">
+          <div className="space-y-2 py-1">
             {MARKIERUNG_FARBEN.map((m) => (
               <div key={m.value} className="flex items-center gap-3">
                 <span

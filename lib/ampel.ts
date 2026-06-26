@@ -18,6 +18,50 @@ export const AMPEL_DOT: Record<AmpelStufe, string> = {
   rot: "bg-red-500",
 };
 
+// Punktfarbe für "kein gültiges Datum" (grau) – identisch zur AmpelBadge.
+export const AMPEL_GRAU_DOT = "bg-muted-foreground/30";
+
+// Tage-Schwellen seit letztem gültigen Kontakt. EINZIGE Quelle der Wahrheit –
+// sowohl ampelInfo() als auch die Legende leiten sich hieraus ab.
+//   0 .. GELB_AB-1  -> grün
+//   GELB_AB .. ROT_AB-1 -> gelb
+//   >= ROT_AB       -> rot
+export const AMPEL_GELB_AB = 13;
+export const AMPEL_ROT_AB = 26;
+
+// Legende: aus den Schwellen abgeleitete Bereiche (nicht hardcoden!).
+export const AMPEL_LEGENDE: {
+  stufe: AmpelStufe | "grau";
+  dot: string;
+  bereich: string;
+  bedeutung: string;
+}[] = [
+  {
+    stufe: "gruen",
+    dot: AMPEL_DOT.gruen,
+    bereich: `0–${AMPEL_GELB_AB - 1} Tage`,
+    bedeutung: "frisch kontaktiert",
+  },
+  {
+    stufe: "gelb",
+    dot: AMPEL_DOT.gelb,
+    bereich: `${AMPEL_GELB_AB}–${AMPEL_ROT_AB - 1} Tage`,
+    bedeutung: "bald fällig",
+  },
+  {
+    stufe: "rot",
+    dot: AMPEL_DOT.rot,
+    bereich: `${AMPEL_ROT_AB}+ Tage`,
+    bedeutung: "offen / To-Do",
+  },
+  {
+    stufe: "grau",
+    dot: AMPEL_GRAU_DOT,
+    bereich: "kein Kontakt",
+    bedeutung: "kein gültiges Datum",
+  },
+];
+
 function daysSince(iso: string): number {
   const [y, m, d] = iso.split("-").map(Number);
   const ref = new Date(y, m - 1, d);
@@ -52,10 +96,10 @@ export function ampelInfo(
   const ref = candidates.reduce((a, b) => (a >= b ? a : b));
 
   const tage = daysSince(ref);
-  // Schwellen: 0–12 grün, 13–25 gelb, 26+ rot.
+  // Schwellen zentral in AMPEL_GELB_AB / AMPEL_ROT_AB (siehe oben).
   let stufe: AmpelStufe = "gruen";
-  if (tage >= 26) stufe = "rot";
-  else if (tage >= 13) stufe = "gelb";
+  if (tage >= AMPEL_ROT_AB) stufe = "rot";
+  else if (tage >= AMPEL_GELB_AB) stufe = "gelb";
   return { stufe, tage };
 }
 
