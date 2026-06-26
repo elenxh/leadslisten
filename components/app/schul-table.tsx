@@ -42,10 +42,11 @@ export function SchulTable({
         {selectable && <span className="w-4 shrink-0" />}
         <span className="w-4 shrink-0" />
         <span className="min-w-0 flex-1">Schule</span>
-        <span className="w-24 shrink-0">Stadt</span>
-        <span className="w-32 shrink-0">Schulart</span>
-        <span className="w-40 shrink-0">Status</span>
+        <span className="w-20 shrink-0">Stadt</span>
+        <span className="w-28 shrink-0">Schulart</span>
+        <span className="w-36 shrink-0">Status</span>
         <span className="w-24 shrink-0">Kontakt</span>
+        <span className="w-32 shrink-0">Telefon</span>
         {showLeitung && <span className="w-8 shrink-0" />}
       </div>
 
@@ -106,17 +107,17 @@ export function SchulTable({
               </div>
 
               {/* Stadt – Desktop */}
-              <span className="hidden w-24 shrink-0 truncate text-muted-foreground sm:block">
+              <span className="hidden w-20 shrink-0 truncate text-muted-foreground sm:block">
                 {s.stadt ?? "—"}
               </span>
 
               {/* Schulart – Desktop */}
-              <span className="hidden w-32 shrink-0 truncate text-muted-foreground sm:block">
+              <span className="hidden w-28 shrink-0 truncate text-muted-foreground sm:block">
                 {s.schulart ?? "—"}
               </span>
 
               {/* Status */}
-              <span className="w-auto shrink-0 sm:w-40">
+              <span className="w-auto shrink-0 sm:w-36">
                 <StatusBadge status={s.status} />
               </span>
 
@@ -127,6 +128,26 @@ export function SchulTable({
                   wiedervorlage={s.wiedervorlage_am}
                   letzterAnruf={s.letzter_anruf_am}
                 />
+              </span>
+
+              {/* Telefon – Desktop, klickbar (tel:) ohne Zeilen-Navigation */}
+              <span className="hidden w-32 shrink-0 truncate sm:block">
+                {s.tel ? (
+                  <span
+                    role="link"
+                    title={`${s.tel} anrufen`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      window.location.href = `tel:${s.tel}`;
+                    }}
+                    className="cursor-pointer text-primary hover:underline"
+                  >
+                    {s.tel}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
               </span>
 
               {/* Leitung – nur Admin */}
