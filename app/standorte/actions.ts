@@ -12,7 +12,10 @@ export type CreateStandortResult =
   | { ok: true; standort: Standort }
   | { ok: false; error: string };
 
-/** Liefert den eingeloggten User + ob er Admin ist (über RLS-Client). */
+/** Liefert den eingeloggten User + ob er Admin ist (über RLS-Client).
+ * Deaktivierte Konten (aktiv = false) gelten als NICHT angemeldet, damit auch
+ * direkte Server-Action-Aufrufe mit noch gültigem Token abgewiesen werden –
+ * die Actions laufen über Service-Role und würden RLS sonst umgehen. */
 async function currentUser() {
   const supabase = await createClient();
   const {
@@ -21,10 +24,11 @@ async function currentUser() {
   if (!user) return null;
   const { data: me } = await supabase
     .from("leitungen")
-    .select("rolle")
+    .select("rolle, aktiv")
     .eq("id", user.id)
     .single();
-  return { id: user.id, isAdmin: me?.rolle === "admin" };
+  if (!me || me.aktiv === false) return null;
+  return { id: user.id, isAdmin: me.rolle === "admin" };
 }
 
 function adminClientOrError():

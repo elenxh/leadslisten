@@ -35,11 +35,11 @@ async function requireAdmin() {
 
   const { data: me } = await supabase
     .from("leitungen")
-    .select("rolle")
+    .select("rolle, aktiv")
     .eq("id", user.id)
     .single();
 
-  if (!me || me.rolle !== "admin") {
+  if (!me || me.rolle !== "admin" || me.aktiv === false) {
     return { ok: false as const, error: "Keine Berechtigung." };
   }
   return { ok: true as const };
