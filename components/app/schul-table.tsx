@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { StatusBadge } from "@/components/app/status-badge";
+import { InlineStatus } from "@/components/app/inline-status";
 import { LeitungAvatar } from "@/components/app/leitung-avatar";
 import { SelectCheckbox } from "@/components/app/select-checkbox";
 import { SchulMarkierung } from "@/components/app/schul-markierung";
@@ -116,9 +117,13 @@ export function SchulTable({
                 {s.schulart ?? "—"}
               </span>
 
-              {/* Status */}
+              {/* Status – inline editierbar für berechtigte Zeilen */}
               <span className="w-auto shrink-0 sm:w-52">
-                <StatusBadge status={s.status} />
+                {canMark(s.standort_id) ? (
+                  <InlineStatus schuleId={s.id} status={s.status} />
+                ) : (
+                  <StatusBadge status={s.status} />
+                )}
               </span>
 
               {/* Kontakt-Ampel – Desktop */}

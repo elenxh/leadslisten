@@ -547,12 +547,14 @@ export async function protokolliereAnruf(
 export async function deleteSchule(schuleId: string): Promise<SimpleResult> {
   const user = await currentUser();
   if (!user) return { ok: false, error: "Nicht angemeldet." };
+  // Löschen ist ausschließlich Admin vorbehalten; Standortleitungen dürfen
+  // Einträge anlegen und bearbeiten, aber nicht löschen.
+  if (!user.isAdmin) {
+    return { ok: false, error: "Löschen ist nur Admins erlaubt." };
+  }
 
   const ac = adminClientOrError();
   if (!ac.ok) return ac;
-
-  const perm = await darfSchuleBearbeiten(ac.admin, user.id, user.isAdmin, schuleId);
-  if (!perm.ok) return perm;
 
   // Anrufe zuerst (FK-sicher); kontakte hängen per ON DELETE CASCADE.
   const { error: aErr } = await ac.admin

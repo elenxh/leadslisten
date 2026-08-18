@@ -15,10 +15,12 @@ export interface CreateLeitungInput {
   region: string;
   rolle: Rolle;
   standortIds?: string[];
+  // "mail" = Einladung per Magic-Link (Default), "passwort" = Temp-Passwort.
+  einladung?: "mail" | "passwort";
 }
 
 export type ActionResult =
-  | { ok: true; tempPassword: string }
+  | { ok: true; invited: boolean; tempPassword: string | null }
   | { ok: false; error: string };
 
 async function requireAdmin() {
@@ -68,24 +70,49 @@ export async function createLeitung(
     return { ok: false, error: (e as Error).message };
   }
 
-  const password = tempPassword();
+  const perMail = (input.einladung ?? "mail") === "mail";
 
-  const { data: created, error: createErr } =
-    await admin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-    });
+  // Auth-User anlegen: entweder per Magic-Link-Einladung (setzt Passwort
+  // selbst) oder mit einem Temp-Passwort, das der Admin weitergibt.
+  // Beides läuft ausschließlich serverseitig über den Service-Role-Key.
+  let userId: string;
+  let password: string | null = null;
 
-  if (createErr || !created?.user) {
-    return {
-      ok: false,
-      error: createErr?.message ?? "Auth-User konnte nicht erstellt werden.",
-    };
+  if (perMail) {
+    const { data: invited, error: inviteErr } =
+      await admin.auth.admin.inviteUserByEmail(email);
+    if (inviteErr || !invited?.user) {
+      return {
+        ok: false,
+        error:
+          inviteErr?.message ??
+          "Einladung konnte nicht verschickt werden. Ist SMTP in Supabase konfiguriert? Alternativ ein Temp-Passwort erzeugen.",
+      };
+    }
+    userId = invited.user.id;
+  } else {
+    password = tempPassword();
+    const { data: created, error: createErr } =
+      await admin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+      });
+    if (createErr || !created?.user) {
+      return {
+        ok: false,
+        error: createErr?.message ?? "Auth-User konnte nicht erstellt werden.",
+      };
+    }
+    userId = created.user.id;
   }
 
+  // Profil-Verknüpfung sofort herstellen: leitungen.id = auth.users.id.
+  // Bei Einladung setzt die Person ihr Passwort über den Magic-Link selbst
+  // (passwort_geaendert = true); beim Temp-Passwort-Weg muss es beim ersten
+  // Login geändert werden (passwort_geaendert = false).
   const { error: insertErr } = await admin.from("leitungen").insert({
-    id: created.user.id,
+    id: userId,
     name,
     email,
     kuerzel,
@@ -93,12 +120,12 @@ export async function createLeitung(
     region: input.region.trim() || null,
     rolle: input.rolle,
     aktiv: true,
-    passwort_geaendert: false,
+    passwort_geaendert: perMail,
   });
 
   if (insertErr) {
     // Roll back the auth user so we don't leave an orphan.
-    await admin.auth.admin.deleteUser(created.user.id);
+    await admin.auth.admin.deleteUser(userId);
     return { ok: false, error: insertErr.message };
   }
 
@@ -107,14 +134,14 @@ export async function createLeitung(
   if (standortIds.length > 0) {
     await admin.from("leitung_standort").insert(
       standortIds.map((standort_id) => ({
-        leitung_id: created.user.id,
+        leitung_id: userId,
         standort_id,
       })),
     );
   }
 
   revalidatePath("/admin/leitungen");
-  return { ok: true, tempPassword: password };
+  return { ok: true, invited: perMail, tempPassword: password };
 }
 
 export async function setLeitungAktiv(

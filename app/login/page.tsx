@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
@@ -23,13 +23,23 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Grund anzeigen, wenn requireLeitung hierher zurückgeschickt hat.
+  useEffect(() => {
+    const reason = new URLSearchParams(window.location.search).get("error");
+    if (reason === "deaktiviert") {
+      setError("Dieser Zugang wurde deaktiviert. Bitte wende dich an den Admin.");
+    } else if (reason === "kein-profil") {
+      setError("Zu diesem Login gibt es kein Profil. Bitte wende dich an den Admin.");
+    }
+  }, []);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
     });
@@ -42,6 +52,21 @@ export default function LoginPage() {
       );
       setLoading(false);
       return;
+    }
+
+    // Deaktivierte Konten sofort wieder abmelden – kein Zugang.
+    if (data.user) {
+      const { data: profil } = await supabase
+        .from("leitungen")
+        .select("aktiv")
+        .eq("id", data.user.id)
+        .single();
+      if (profil && profil.aktiv === false) {
+        await supabase.auth.signOut();
+        setError("Dieser Zugang wurde deaktiviert. Bitte wende dich an den Admin.");
+        setLoading(false);
+        return;
+      }
     }
 
     router.replace("/dashboard");
