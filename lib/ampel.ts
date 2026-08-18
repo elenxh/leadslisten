@@ -2,7 +2,7 @@
 // Hat NICHTS mit dem Status zu tun. Referenzdatum = wiedervorlage_am, sonst
 // erstkontakt_am.
 
-import { dateOnly } from "@/lib/dates";
+import { dateOnly, ymdInBusinessTZ } from "@/lib/dates";
 
 export type AmpelStufe = "gruen" | "gelb" | "rot";
 
@@ -62,12 +62,20 @@ export const AMPEL_LEGENDE: {
   },
 ];
 
+// Kalendertage zwischen einem gespeicherten Datum und "heute". "heute" wird in
+// der Geschäfts-Zeitzone bestimmt und die Differenz rein über Date.UTC
+// gerechnet -> identisch auf Server (UTC) und Client (Browser-TZ), also KEIN
+// Hydration-Mismatch. (Früher: new Date() lokal -> Server/Client wichen nahe
+// Mitternacht um einen Tag ab und crashten die Seite.)
+function ymdToUTCms(ymd: string): number {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return Date.UTC(y, m - 1, d);
+}
+
 function daysSince(iso: string): number {
-  const [y, m, d] = iso.split("-").map(Number);
-  const ref = new Date(y, m - 1, d);
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  return Math.floor((today.getTime() - ref.getTime()) / 86_400_000);
+  const today = ymdToUTCms(ymdInBusinessTZ());
+  const ref = ymdToUTCms(iso.slice(0, 10));
+  return Math.round((today - ref) / 86_400_000);
 }
 
 // Plausibel = ab 01.01.2020 bis einschließlich heute (kein 1900-Müll, keine

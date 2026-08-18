@@ -5,21 +5,23 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from "@/components/ui/select";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { StatusBadge } from "@/components/app/status-badge";
 import { STATUS_LIST } from "@/lib/status";
 import { updateStatus } from "@/app/standorte/actions";
+import { cn } from "@/lib/utils";
 import type { SchulStatus } from "@/lib/types";
 
 /**
- * Inline-Statuswechsel in der Listen-Ansicht: Klick öffnet ein Dropdown, die
- * Auswahl wird optimistisch gesetzt und per Server-Action gespeichert. Bei
- * Fehler wird der alte Wert wiederhergestellt. Steht in einer <Link>-Zeile,
- * daher werden Klicks hier gestoppt, damit die Zeile nicht navigiert.
+ * Inline-Statuswechsel in der Listen-Ansicht: Klick auf das Badge öffnet ein
+ * Menü der Pipeline-Werte; die Auswahl wird optimistisch gesetzt und per
+ * Server-Action gespeichert (bei Fehler Rücksetzen). Nutzt bewusst denselben
+ * DropdownMenu-Baustein wie SchulMarkierung – Base UI Select rendert versteckte
+ * Inputs/Portale und würde in der <a>-Zeile Hydration-Mismatches auslösen.
  */
 export function InlineStatus({
   schuleId,
@@ -31,9 +33,7 @@ export function InlineStatus({
   const [val, setVal] = useState<SchulStatus>(status);
   const [pending, start] = useTransition();
 
-  function change(v: SchulStatus | null) {
-    if (!v) return;
-    const next = v;
+  function choose(next: SchulStatus) {
     if (next === val) return;
     const prev = val;
     setVal(next); // optimistisch
@@ -49,26 +49,40 @@ export function InlineStatus({
   return (
     <span
       className="inline-flex items-center gap-1"
-      onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-      }}
+      onClick={(e) => e.stopPropagation()}
     >
-      <Select value={val} onValueChange={change}>
-        <SelectTrigger
-          aria-label="Status ändern"
-          className="h-auto gap-1 border-0 bg-transparent px-0 py-0 shadow-none hover:opacity-80 focus-visible:ring-0 dark:bg-transparent dark:hover:bg-transparent"
-        >
-          <StatusBadge status={val} />
-        </SelectTrigger>
-        <SelectContent>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <button
+              type="button"
+              disabled={pending}
+              aria-label="Status ändern"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              className="inline-flex items-center rounded-md text-left transition-opacity hover:opacity-80 disabled:opacity-50"
+            >
+              <StatusBadge status={val} />
+            </button>
+          }
+        />
+        <DropdownMenuContent align="start" className="w-56">
           {STATUS_LIST.map((s) => (
-            <SelectItem key={s.value} value={s.value}>
-              {s.label}
-            </SelectItem>
+            <DropdownMenuItem key={s.value} onClick={() => choose(s.value)}>
+              <span
+                className={cn(
+                  "truncate",
+                  s.value === val && "font-semibold text-foreground",
+                )}
+              >
+                {s.label}
+              </span>
+            </DropdownMenuItem>
           ))}
-        </SelectContent>
-      </Select>
+        </DropdownMenuContent>
+      </DropdownMenu>
       {pending && (
         <Loader2 className="size-3 shrink-0 animate-spin text-muted-foreground" />
       )}
