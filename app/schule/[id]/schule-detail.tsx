@@ -661,8 +661,8 @@ export function SchuleDetail({
         </CardContent>
       </Card>
 
-      {/* Löschen – Admin + betreuende Standort-Leitung */}
-      {(admin || canEditSchulart) && (
+      {/* Löschen – nur Admin (Standortleitungen dürfen nicht löschen) */}
+      {admin && (
         <div className="flex justify-end pt-2">
           <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
             <DialogTrigger

@@ -30,6 +30,7 @@ import { LeitungAvatar } from "@/components/app/leitung-avatar";
 import { ChipMultiSelect } from "@/components/app/chip-multiselect";
 import { createLeitung, setLeitungAktiv } from "./actions";
 import { setLeitungStandorte } from "@/app/standorte/actions";
+import { cn } from "@/lib/utils";
 import type { Leitung, Rolle, Standort } from "@/lib/types";
 
 const PRESET_COLORS = [
@@ -211,6 +212,7 @@ function CreateLeitungDialog({ standorte }: { standorte: Standort[] }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [tempPw, setTempPw] = useState<string | null>(null);
+  const [invitedTo, setInvitedTo] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -221,6 +223,7 @@ function CreateLeitungDialog({ standorte }: { standorte: Standort[] }) {
   const [farbe, setFarbe] = useState(PRESET_COLORS[5]);
   const [rolle, setRolle] = useState<Rolle>("leitung");
   const [standortIds, setStandortIds] = useState<string[]>([]);
+  const [einladung, setEinladung] = useState<"mail" | "passwort">("mail");
 
   function resetForm() {
     setName("");
@@ -230,6 +233,7 @@ function CreateLeitungDialog({ standorte }: { standorte: Standort[] }) {
     setFarbe(PRESET_COLORS[5]);
     setRolle("leitung");
     setStandortIds([]);
+    setEinladung("mail");
     setError(null);
   }
 
@@ -245,13 +249,18 @@ function CreateLeitungDialog({ standorte }: { standorte: Standort[] }) {
       region,
       rolle,
       standortIds,
+      einladung,
     });
     setSaving(false);
     if (!res.ok) {
       setError(res.error);
       return;
     }
-    setTempPw(res.tempPassword);
+    if (res.invited) {
+      setInvitedTo(email.trim().toLowerCase());
+    } else {
+      setTempPw(res.tempPassword);
+    }
     resetForm();
     router.refresh();
   }
@@ -259,6 +268,7 @@ function CreateLeitungDialog({ standorte }: { standorte: Standort[] }) {
   function closeAll() {
     setOpen(false);
     setTempPw(null);
+    setInvitedTo(null);
     setCopied(false);
     resetForm();
   }
@@ -276,7 +286,21 @@ function CreateLeitungDialog({ standorte }: { standorte: Standort[] }) {
         Leitung anlegen
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
-        {tempPw ? (
+        {invitedTo ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Einladung verschickt</DialogTitle>
+              <DialogDescription>
+                An <span className="font-medium text-foreground">{invitedTo}</span>{" "}
+                wurde eine Einladung per E-Mail (Magic-Link) gesendet. Die Person
+                legt darüber ihr Passwort selbst fest und ist danach freigeschaltet.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button onClick={closeAll}>Fertig</Button>
+            </DialogFooter>
+          </>
+        ) : tempPw ? (
           <>
             <DialogHeader>
               <DialogTitle>Leitung angelegt</DialogTitle>
@@ -316,7 +340,8 @@ function CreateLeitungDialog({ standorte }: { standorte: Standort[] }) {
             <DialogHeader>
               <DialogTitle>Neue Leitung anlegen</DialogTitle>
               <DialogDescription>
-                Legt einen Login an. Die Person erhält ein temporäres Passwort.
+                Legt einen Login an – wahlweise per E-Mail-Einladung
+                (Magic-Link) oder mit einem temporären Passwort.
               </DialogDescription>
             </DialogHeader>
 
@@ -407,6 +432,38 @@ function CreateLeitungDialog({ standorte }: { standorte: Standort[] }) {
                     aria-label="Eigene Farbe"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Zugang</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(
+                    [
+                      ["mail", "Einladung per Mail"],
+                      ["passwort", "Temp-Passwort erzeugen"],
+                    ] as const
+                  ).map(([val, label]) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setEinladung(val)}
+                      aria-pressed={einladung === val}
+                      className={cn(
+                        "rounded-lg border px-3 py-2 text-sm transition-colors",
+                        einladung === val
+                          ? "border-primary bg-primary/5 font-medium text-foreground"
+                          : "border-input text-muted-foreground hover:bg-muted/60",
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {einladung === "mail"
+                    ? "Die Person erhält einen Magic-Link und setzt ihr Passwort selbst (SMTP in Supabase nötig)."
+                    : "Es wird ein Temp-Passwort erzeugt und dir einmalig angezeigt."}
+                </p>
               </div>
 
               {error && (

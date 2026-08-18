@@ -29,6 +29,11 @@ export async function requireLeitung(): Promise<Leitung> {
     redirect("/login?error=kein-profil");
   }
 
+  // Deaktivierte Konten (aktiv = false) kommen nicht in die App.
+  if (!(leitung as Leitung).aktiv) {
+    redirect("/login?error=deaktiviert");
+  }
+
   return leitung as Leitung;
 }
 
