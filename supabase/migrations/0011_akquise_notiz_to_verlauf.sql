@@ -63,7 +63,22 @@ set akquise_notiz = nullif(
 where s.akquise_notiz is not null
   and s.akquise_notiz ~ '\d{1,2}\.\d{1,2}\.\d{2,4}';
 
--- Denormalisierte Marker bleiben 0/NULL: die migrierten Einträge haben
--- ergebnis = NULL (unbekannt) und zählen daher NICHT als "nicht erreicht".
+-- 4) Ampel-Referenz nachziehen: letzter_anruf_am = jüngstes Anruf-Datum je
+--    Schule (inkl. der neu importierten Verlaufszeilen). Nur anheben, nie
+--    senken -> idempotent. So spiegelt die Ampel den letzten (auch
+--    importierten) Kontakt wider.
+update public.schulen s
+set letzter_anruf_am = sub.maxd
+from (
+  select schule_id, max(datum::date) as maxd
+  from public.anrufe
+  group by schule_id
+) sub
+where sub.schule_id = s.id
+  and (s.letzter_anruf_am is null or s.letzter_anruf_am < sub.maxd);
+
+-- Denormalisierte Marker (letztes_ergebnis / nicht_erreicht_serie) bleiben
+-- 0/NULL: die migrierten Einträge haben ergebnis = NULL (unbekannt) und zählen
+-- daher NICHT als "nicht erreicht".
 
 commit;
