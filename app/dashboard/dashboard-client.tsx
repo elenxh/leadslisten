@@ -384,14 +384,14 @@ export function DashboardClient({
     }
   }, [tab, mine, bereichSchulen, absageFilter]);
 
-  // Zähl-Basis für die Seitenleiste: der VOLLE Standort-Datensatz im aktuellen
-  // Bereich (Schule/Träger) + Admin/Leitung-Scope – bewusst UNABHÄNGIG von
-  // tab/statusFilter/markFilter/Suche. Dieselbe Basis wie die "Schulen gesamt"-
-  // Kachel (aktive Schulen ohne Abschlüsse), damit die Badges nicht beim
-  // Reiterwechsel springen und die Zahl des gewählten Standorts der Kachel
-  // entspricht.
+  // Zähl-Basis für die Seitenleiste: ALLE Schulen des Standorts im aktuellen
+  // Bereich (Schule/Träger) + Admin/Leitung-Scope, ABZÜGLICH der Absagen
+  // ("Kein Interesse"/"Anderer Anbieter"). Abschlüsse bleiben mitgezählt.
+  // Bewusst UNABHÄNGIG von tab/statusFilter/markFilter/Suche -> springt beim
+  // Reiterwechsel nicht; ändert sich aber, wenn sich ein Status tatsächlich
+  // ändert (Datenänderung).
   const sidebarBase = useMemo(
-    () => (admin ? bereichSchulen : mine).filter((s) => !istErledigt(s)),
+    () => (admin ? bereichSchulen : mine).filter((s) => !istAbsage(s)),
     [admin, bereichSchulen, mine],
   );
 
