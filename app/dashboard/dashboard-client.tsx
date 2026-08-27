@@ -447,7 +447,13 @@ export function DashboardClient({
 
   // Anzahl je Schulart-Kategorie (innerhalb der übrigen aktiven Filter).
   const schulartCounts = useMemo(() => {
-    const c = { all: preSchulart.length, grundschule: 0, weiterfuehrende: 0, berufsschule: 0 };
+    const c = {
+      all: preSchulart.length,
+      grundschule: 0,
+      weiterfuehrende: 0,
+      berufsschule: 0,
+      weitere: 0,
+    };
     for (const s of preSchulart) c[schulartKategorie(s.schulart)]++;
     return c;
   }, [preSchulart]);

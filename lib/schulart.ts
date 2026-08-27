@@ -1,47 +1,76 @@
-// Grobe Kategorisierung der (frei eingetragenen) Schulart in 3 Gruppen.
+// Grobe Kategorisierung der (frei eingetragenen) Schulart in 4 Gruppen.
 // Wird NUR im Code berechnet, nicht in der DB gespeichert.
 
 export type SchulartKategorie =
   | "grundschule"
   | "weiterfuehrende"
-  | "berufsschule";
+  | "berufsschule"
+  | "weitere";
 
 export interface SchulartKategorieMeta {
   value: SchulartKategorie;
   label: string;
 }
 
+// Reihenfolge = Anzeige-Reihenfolge der Tabs.
 export const SCHULART_KATEGORIEN: SchulartKategorieMeta[] = [
   { value: "grundschule", label: "Grundschule" },
   { value: "weiterfuehrende", label: "Weiterführende" },
   { value: "berufsschule", label: "Berufsschule" },
+  { value: "weitere", label: "Weitere" },
+];
+
+// =====================================================================
+// ZENTRALE, pflegbare Zuordnung Schulart -> Kategorie über Schlüsselwörter
+// (case-insensitiver Teilstring-Abgleich). Reihenfolge = Priorität: die erste
+// Kategorie, deren Keyword passt, gewinnt. Neue Schularten einfach als Keyword
+// in die passende Liste eintragen. Alles OHNE Treffer (inkl. leer/unbekannt)
+// landet in "Weitere" – so wird garantiert KEINE Schule unsichtbar.
+// =====================================================================
+export const SCHULART_KEYWORDS: {
+  value: Exclude<SchulartKategorie, "weitere">;
+  keywords: string[];
+}[] = [
+  { value: "grundschule", keywords: ["grundschule"] },
+  {
+    value: "berufsschule",
+    keywords: [
+      "beruf", // Berufsschule, Berufsfachschule, Berufskolleg, Berufliches …
+      "fachschule",
+      "osz",
+      "oberstufenzentrum",
+      "zbw",
+    ],
+  },
+  {
+    value: "weiterfuehrende",
+    keywords: [
+      "gymnasium",
+      "sekundar", // (Integrierte) Sekundarschule, Sekundarstufe
+      "gemeinschaft", // Gemeinschaftsschule
+      "oberschule",
+      "gesamtschule",
+      "realschule",
+      "hauptschule",
+      "mittelschule",
+      "stadtteilschule",
+    ],
+  },
 ];
 
 /**
- * Leitet aus der freien `schulart` eine der drei Kategorien ab.
- * - enthält "grundschule" -> Grundschule
- * - enthält "beruf"/"fachschule"/"osz"/"oberstufenzentrum" oder == "ZBW"
- *   -> Berufsschule
- * - sonst -> Weiterführende
+ * Leitet aus der freien `schulart` eine Kategorie ab. Erste Kategorie mit
+ * passendem Schlüsselwort gewinnt (Priorität: Grundschule > Berufsschule >
+ * Weiterführende); ohne Treffer -> "Weitere" (Fallback).
  */
 export function schulartKategorie(
   schulart: string | null | undefined,
 ): SchulartKategorie {
   const s = (schulart ?? "").trim().toLowerCase();
-
-  if (s.includes("grundschule")) return "grundschule";
-
-  if (
-    s.includes("beruf") ||
-    s.includes("fachschule") ||
-    s.includes("osz") ||
-    s.includes("oberstufenzentrum") ||
-    s === "zbw"
-  ) {
-    return "berufsschule";
+  for (const cat of SCHULART_KEYWORDS) {
+    if (cat.keywords.some((k) => s.includes(k))) return cat.value;
   }
-
-  return "weiterfuehrende";
+  return "weitere";
 }
 
 export function schulartKategorieLabel(k: SchulartKategorie): string {
