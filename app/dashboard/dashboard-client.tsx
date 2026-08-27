@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Ban,
   CalendarClock,
+  Clock,
   Handshake,
   LayoutGrid,
   List,
   Loader2,
   MapPin,
-  MessagesSquare,
   School,
   Search,
   X,
@@ -76,10 +77,11 @@ type LegendeRow = Pick<FarbLegende, "standort_id" | "farbe" | "bezeichnung">;
 
 type TabKey =
   | "meine"
+  | "baldoffen"
   | "faellig"
   | "woche"
-  | "wiedervorlage"
-  | "erledigt"
+  | "koop"
+  | "absage"
   | "alle";
 type ViewMode = "kachel" | "liste";
 type Bereich = "schule" | "traeger";
@@ -100,6 +102,18 @@ const istErledigt = (s: SchuleMitLeitung) =>
 const istOffen = (s: SchuleMitLeitung): boolean =>
   ampelInfo(s.erstkontakt_am, s.wiedervorlage_am, s.letzter_anruf_am).stufe ===
   "rot";
+
+// "Bald offen" = gelbe Ampel (13–25 Tage seit letztem Kontakt).
+const istBaldOffen = (s: SchuleMitLeitung): boolean =>
+  ampelInfo(s.erstkontakt_am, s.wiedervorlage_am, s.letzter_anruf_am).stufe ===
+  "gelb";
+
+// Abschluss-Status, getrennt ausgewertet.
+const KOOP_STATUS = "Kooperationsabschluss";
+const ABSAGE_STATUS: readonly string[] = ["Kein Interesse", "Anderer Anbieter"];
+const istKoop = (s: SchuleMitLeitung): boolean => s.status === KOOP_STATUS;
+const istAbsage = (s: SchuleMitLeitung): boolean =>
+  ABSAGE_STATUS.includes(s.status);
 
 // Ort für den Bezirks-Filter: bevorzugt Bezirk, sonst Stadt.
 const ortVon = (s: SchuleMitLeitung): string =>
@@ -174,6 +188,10 @@ export function DashboardClient({
 
   const [bereich, setBereich] = useState<Bereich>("schule");
   const [tab, setTab] = useState<TabKey>(admin ? "alle" : "meine");
+  // Sub-Filter innerhalb der "Kein Interesse / Andere Anbieter"-Ansicht.
+  const [absageFilter, setAbsageFilter] = useState<
+    "alle" | "Kein Interesse" | "Anderer Anbieter"
+  >("alle");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [ringFilter, setRingFilter] = useState<string>("all");
   const [standortFilter, setStandortFilter] = useState<string>(STANDORT_ALLE);
@@ -317,9 +335,10 @@ export function DashboardClient({
     const aktiv = statScope.filter((s) => !istErledigt(s));
     return {
       mine: aktiv.length,
-      faellig: aktiv.filter(istOffen).length,
-      wiedervorlage: aktiv.filter((s) => s.wiedervorlage_am != null).length,
-      erledigt: statScope.filter(istErledigt).length,
+      baldOffen: aktiv.filter(istBaldOffen).length,
+      offen: aktiv.filter(istOffen).length,
+      koop: statScope.filter(istKoop).length,
+      absage: statScope.filter(istAbsage).length,
     };
   }, [statScope]);
 
@@ -346,24 +365,30 @@ export function DashboardClient({
   };
 
   const tabbed = useMemo(() => {
-    // Aktive Liste blendet erledigte Status aus; "Erledigt" zeigt nur diese.
+    // Aktive Liste blendet Abschluss-Status aus; die Abschluss-Reiter zeigen sie.
     const aktiv = bereichSchulen.filter((s) => !istErledigt(s));
     switch (tab) {
       case "meine":
         return mine.filter((s) => !istErledigt(s));
+      case "baldoffen":
+        return aktiv.filter(istBaldOffen);
       case "faellig":
         return aktiv.filter(istOffen);
       case "woche":
         return aktiv.filter((s) => isDueThisWeek(s.wiedervorlage_am));
-      case "wiedervorlage":
-        return aktiv.filter((s) => s.wiedervorlage_am != null);
-      case "erledigt":
-        return bereichSchulen.filter(istErledigt);
+      case "koop":
+        return bereichSchulen.filter(istKoop);
+      case "absage": {
+        const base = bereichSchulen.filter(istAbsage);
+        return absageFilter === "alle"
+          ? base
+          : base.filter((s) => s.status === absageFilter);
+      }
       case "alle":
       default:
         return aktiv;
     }
-  }, [tab, mine, bereichSchulen]);
+  }, [tab, mine, bereichSchulen, absageFilter]);
 
   // Schulzahlen je Standort für die Seitenleiste – bezogen auf den aktuellen
   // Reiter (Bereich + aktiv/erledigt), damit Badges zur Ansicht passen.
@@ -580,48 +605,57 @@ export function DashboardClient({
         </div>
 
         {/* Statistik-Kacheln + feste Ampel-Mini-Legende rechts daneben */}
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch">
-        <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatCard
-            label={
-              admin ? `${nomen} gesamt` : `Meine ${nomen}`
-            }
-            value={stats.mine}
-            icon={School}
-            accent="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"
-            active={tab === (admin ? "alle" : "meine")}
-            onClick={() => {
-              setTab(admin ? "alle" : "meine");
-              setStatusFilter("all");
-              setMarkFilter("all");
-            }}
-          />
-          <StatCard
-            label="Offen"
-            value={stats.faellig}
-            icon={CalendarClock}
-            accent="bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-200"
-            active={tab === "faellig"}
-            onClick={() => setTab("faellig")}
-          />
-          <StatCard
-            label="Wiedervorlage"
-            value={stats.wiedervorlage}
-            icon={MessagesSquare}
-            accent="bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-200"
-            active={tab === "wiedervorlage"}
-            onClick={() => setTab("wiedervorlage")}
-          />
-          <StatCard
-            label="Erledigt"
-            value={stats.erledigt}
-            icon={Handshake}
-            accent="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200"
-            active={tab === "erledigt"}
-            onClick={() => setTab("erledigt")}
-          />
-        </div>
-          <AmpelMiniLegende className="shrink-0 lg:w-56" />
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+            <StatCard
+              label={admin ? `${nomen} gesamt` : `Meine ${nomen}`}
+              value={stats.mine}
+              icon={School}
+              accent="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              active={tab === (admin ? "alle" : "meine")}
+              onClick={() => {
+                setTab(admin ? "alle" : "meine");
+                setStatusFilter("all");
+                setMarkFilter("all");
+              }}
+            />
+            <StatCard
+              label="Bald offen"
+              value={stats.baldOffen}
+              icon={Clock}
+              accent="bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-200"
+              active={tab === "baldoffen"}
+              onClick={() => setTab("baldoffen")}
+            />
+            <StatCard
+              label="Offen"
+              value={stats.offen}
+              icon={CalendarClock}
+              accent="bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-200"
+              active={tab === "faellig"}
+              onClick={() => setTab("faellig")}
+            />
+            <StatCard
+              label="Aktive Kooperationen"
+              value={stats.koop}
+              icon={Handshake}
+              accent="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200"
+              active={tab === "koop"}
+              onClick={() => setTab("koop")}
+            />
+            <StatCard
+              label="Kein Interesse / Andere Anbieter"
+              value={stats.absage}
+              icon={Ban}
+              accent="bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+              active={tab === "absage"}
+              onClick={() => {
+                setTab("absage");
+                setAbsageFilter("alle");
+              }}
+            />
+          </div>
+          <AmpelMiniLegende className="w-full sm:w-fit" />
         </div>
 
         {/* Standort-Auswahl – Mobile */}
@@ -658,12 +692,42 @@ export function DashboardClient({
         <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
           <TabsList className="flex w-full flex-wrap">
             <TabsTrigger value="meine">Meine</TabsTrigger>
+            <TabsTrigger value="alle">Aktiv</TabsTrigger>
+            <TabsTrigger value="baldoffen">Bald offen</TabsTrigger>
             <TabsTrigger value="faellig">Offen</TabsTrigger>
             <TabsTrigger value="woche">Diese Woche</TabsTrigger>
-            <TabsTrigger value="alle">Aktiv</TabsTrigger>
-            <TabsTrigger value="erledigt">Erledigt</TabsTrigger>
+            <TabsTrigger value="koop">Aktive Kooperationen</TabsTrigger>
+            <TabsTrigger value="absage">Kein Interesse / Andere</TabsTrigger>
           </TabsList>
         </Tabs>
+
+        {/* Sub-Dashboard der Absagen-Ansicht: Alle / Kein Interesse / Andere */}
+        {tab === "absage" && (
+          <div className="flex flex-wrap items-center gap-1">
+            {(
+              [
+                ["alle", "Alle"],
+                ["Kein Interesse", "Kein Interesse"],
+                ["Anderer Anbieter", "Andere Anbieter"],
+              ] as const
+            ).map(([val, label]) => (
+              <button
+                key={val}
+                type="button"
+                onClick={() => setAbsageFilter(val)}
+                aria-pressed={absageFilter === val}
+                className={cn(
+                  "rounded-md px-3 py-1 text-sm transition-colors",
+                  absageFilter === val
+                    ? "bg-muted font-medium text-foreground"
+                    : "text-muted-foreground hover:bg-muted/60",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Filter */}
         <div className="space-y-2">
