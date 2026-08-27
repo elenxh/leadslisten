@@ -34,6 +34,28 @@ alter table public.schulen
 alter table public.schulen
   add column if not exists akquise_notiz_backup text;
 
+-- --- Trigger null-sicher machen ---------------------------------------
+-- Der bestehende Trigger update_schule_nach_anruf() schrieb bei JEDEM Insert in
+-- anrufe schulen.status = NEW.status_neu – auch wenn status_neu NULL ist (Anruf
+-- ohne Statuswahl "— unverändert —" ODER Alt-Import). Das verletzt die NOT-NULL-
+-- Regel auf schulen.status. Neu: Status nur übernehmen, wenn gesetzt; Erstkontakt
+-- nur füllen, wenn leer; Ampel-Referenz nur anheben (rückdatierte/importierte
+-- Anrufe senken sie nicht).
+create or replace function public.update_schule_nach_anruf()
+returns trigger
+language plpgsql
+as $$
+begin
+  update public.schulen s
+  set
+    status           = coalesce(new.status_neu, s.status),
+    erstkontakt_am   = coalesce(s.erstkontakt_am, new.datum::date),
+    letzter_anruf_am = greatest(s.letzter_anruf_am, new.datum::date)
+  where s.id = new.schule_id;
+  return new;
+end;
+$$;
+
 -- Hinweis: Bestehende anrufe haben ergebnis = NULL (Spalte neu), daher ist die
 -- Serie zunächst 0 und letztes_ergebnis NULL. Beide Felder werden ab jetzt bei
 -- jedem protokollierten Anruf serverseitig neu berechnet (protokolliereAnruf).
