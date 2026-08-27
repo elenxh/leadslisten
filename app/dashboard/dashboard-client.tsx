@@ -318,22 +318,25 @@ export function DashboardClient({
     [standortFilter],
   );
 
-  // Stat scope: Leitung sieht ihre eigenen Zahlen, Admin alle – jeweils im
-  // aktuell gewählten Standort (Kacheln folgen demselben Scope wie die Liste).
-  const statScope = useMemo(
+  // Standort-Scope für die KPI-Kacheln: der KOMPLETTE Datensatz des aktiven
+  // Standorts (Admin: alle, Leitung: eigene). BEWUSST unabhängig von tab,
+  // statusFilter, markFilter, Suche & Co. – die Kachel-Zahlen zeigen immer die
+  // volle Gesamtzahl und ändern sich NICHT, wenn man eine Kachel/einen Reiter
+  // wählt (das filtert nur die Liste darunter).
+  const standortScope = useMemo(
     () => (admin ? bereichSchulen : mine).filter(matchStandort),
     [admin, bereichSchulen, mine, matchStandort],
   );
   const stats = useMemo(() => {
-    const aktiv = statScope.filter((s) => !istErledigt(s));
+    const aktiv = standortScope.filter((s) => !istErledigt(s));
     return {
       mine: aktiv.length,
       baldOffen: aktiv.filter(istBaldOffen).length,
       offen: aktiv.filter(istOffen).length,
-      koop: statScope.filter(istKoop).length,
-      absage: statScope.filter(istAbsage).length,
+      koop: standortScope.filter(istKoop).length,
+      absage: standortScope.filter(istAbsage).length,
     };
-  }, [statScope]);
+  }, [standortScope]);
 
   const activeStandortName = useMemo(() => {
     if (standortFilter === STANDORT_ALLE) return null;
