@@ -39,7 +39,6 @@ export const SCHULART_KEYWORDS: {
       "fachschule",
       "osz",
       "oberstufenzentrum",
-      "zbw",
     ],
   },
   {
@@ -48,7 +47,6 @@ export const SCHULART_KEYWORDS: {
       "gymnasium",
       "sekundar", // (Integrierte) Sekundarschule, Sekundarstufe
       "gemeinschaft", // Gemeinschaftsschule
-      "oberschule",
       "gesamtschule",
       "realschule",
       "hauptschule",
@@ -56,6 +54,8 @@ export const SCHULART_KEYWORDS: {
       "stadtteilschule",
     ],
   },
+  // Bewusst OHNE Keyword und daher in "Weitere": Oberschule, ZBW – sowie alles
+  // sonst Unbekannte/Leere (Fallback in schulartKategorie()).
 ];
 
 /**
