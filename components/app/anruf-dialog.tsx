@@ -25,32 +25,35 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import { STATUS_LIST } from "@/lib/status";
-import { todayISO } from "@/lib/dates";
+import { ERGEBNIS_LIST } from "@/lib/anruf";
+import { plusTageISO, todayISO } from "@/lib/dates";
 import { protokolliereAnruf } from "@/app/standorte/actions";
-import type { SchulStatus } from "@/lib/types";
+
+const STATUS_UNVERAENDERT = "__unchanged__";
 
 export function AnrufDialog({
   schuleId,
   leitungId,
-  currentStatus,
 }: {
   schuleId: string;
   leitungId: string;
-  currentStatus: SchulStatus;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const [datum, setDatum] = useState(todayISO());
-  const [status, setStatus] = useState<string>(currentStatus);
+  const [ergebnis, setErgebnis] = useState<string>("");
+  const [status, setStatus] = useState<string>(STATUS_UNVERAENDERT);
   const [wv, setWv] = useState("");
   const [notiz, setNotiz] = useState("");
 
   function reset() {
     setDatum(todayISO());
-    setStatus(currentStatus);
+    setErgebnis("");
+    setStatus(STATUS_UNVERAENDERT);
     setWv("");
     setNotiz("");
   }
@@ -61,12 +64,17 @@ export function AnrufDialog({
       toast.error("Bitte ein Datum angeben.");
       return;
     }
+    if (!ergebnis) {
+      toast.error("Bitte ein Ergebnis wählen.");
+      return;
+    }
     startTransition(async () => {
       const res = await protokolliereAnruf({
         schuleId,
         leitungId,
         datum,
-        status,
+        ergebnis,
+        status: status === STATUS_UNVERAENDERT ? null : status,
         wiedervorlage: wv || null,
         notiz: notiz.trim() || null,
       });
@@ -77,7 +85,7 @@ export function AnrufDialog({
         return;
       }
       toast.success("Anruf protokolliert");
-      setOpen(false);
+      // Felder frisch für den nächsten Eintrag – Dialog bleibt offen.
       reset();
       router.refresh();
     });
@@ -100,12 +108,36 @@ export function AnrufDialog({
           <DialogHeader>
             <DialogTitle>Anruf protokollieren</DialogTitle>
             <DialogDescription>
-              Kontaktversuch festhalten und Status / nächste Wiedervorlage
-              setzen.
+              Ergebnis festhalten – optional Status setzen und Wiedervorlage
+              planen. Nach dem Speichern bleibt der Dialog für den nächsten
+              Eintrag offen.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-3">
+            {/* Ergebnis (Pflicht) */}
+            <div className="space-y-2">
+              <Label>Ergebnis *</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {ERGEBNIS_LIST.map((e) => (
+                  <button
+                    key={e.value}
+                    type="button"
+                    onClick={() => setErgebnis(e.value)}
+                    aria-pressed={ergebnis === e.value}
+                    className={cn(
+                      "rounded-lg border px-2 py-2 text-sm font-medium transition-colors",
+                      ergebnis === e.value
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-input text-foreground/70 hover:bg-muted",
+                    )}
+                  >
+                    {e.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="anruf-datum">Datum des Anrufs</Label>
@@ -118,19 +150,26 @@ export function AnrufDialog({
                 />
               </div>
               <div className="space-y-2">
-                <Label>Ergebnis / Status</Label>
+                <Label>Neuer Status (optional)</Label>
                 <Select
                   value={status}
-                  onValueChange={(v) => setStatus((v as string) ?? currentStatus)}
+                  onValueChange={(v) =>
+                    setStatus((v as string) ?? STATUS_UNVERAENDERT)
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue>
                       {(v: string) =>
-                        STATUS_LIST.find((s) => s.value === v)?.label ?? v
+                        v === STATUS_UNVERAENDERT
+                          ? "— unverändert —"
+                          : STATUS_LIST.find((s) => s.value === v)?.label ?? v
                       }
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value={STATUS_UNVERAENDERT}>
+                      — unverändert —
+                    </SelectItem>
                     {STATUS_LIST.map((s) => (
                       <SelectItem key={s.value} value={s.value}>
                         {s.label}
@@ -141,18 +180,45 @@ export function AnrufDialog({
               </div>
             </div>
 
+            {/* Wiedervorlage mit Schnellwahl */}
             <div className="space-y-2">
-              <Label htmlFor="anruf-wv">Nächste Wiedervorlage (optional)</Label>
-              <Input
-                id="anruf-wv"
-                type="date"
-                value={wv}
-                onChange={(e) => setWv(e.target.value)}
-              />
+              <Label htmlFor="anruf-wv">Wiedervorlage (optional)</Label>
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  id="anruf-wv"
+                  type="date"
+                  value={wv}
+                  onChange={(e) => setWv(e.target.value)}
+                  className="w-auto"
+                />
+                {[
+                  ["1 Woche", 7],
+                  ["2 Wochen", 14],
+                  ["4 Wochen", 28],
+                ].map(([label, tage]) => (
+                  <button
+                    key={tage}
+                    type="button"
+                    onClick={() => setWv(plusTageISO(tage as number))}
+                    className="rounded-md border border-input px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    {label as string}
+                  </button>
+                ))}
+                {wv && (
+                  <button
+                    type="button"
+                    onClick={() => setWv("")}
+                    className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-destructive"
+                  >
+                    löschen
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="anruf-notiz">Notiz</Label>
+              <Label htmlFor="anruf-notiz">Notiz (optional)</Label>
               <Textarea
                 id="anruf-notiz"
                 rows={3}
@@ -163,7 +229,15 @@ export function AnrufDialog({
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+              disabled={pending}
+            >
+              Fertig
+            </Button>
             <Button type="submit" disabled={pending}>
               {pending && <Loader2 className="mr-2 size-4 animate-spin" />}
               Speichern

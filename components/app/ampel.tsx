@@ -7,23 +7,22 @@ import {
 } from "@/lib/ampel";
 
 /**
- * Tage-Ampel: farbiger Punkt + "vor X Tagen", basierend ausschließlich auf
- * dem Referenzdatum (wiedervorlage_am, sonst erstkontakt_am).
+ * Tage-Ampel: farbiger Punkt + "vor X Tagen", basierend auf dem letzten echten
+ * Kontakt (letzter_anruf_am, sonst erstkontakt_am). Die Wiedervorlage fließt
+ * NICHT ein (getrenntes Signal).
  */
 export function AmpelBadge({
   erstkontakt,
-  wiedervorlage,
   letzterAnruf,
   showText = true,
   className,
 }: {
   erstkontakt: string | null;
-  wiedervorlage: string | null;
   letzterAnruf?: string | null;
   showText?: boolean;
   className?: string;
 }) {
-  const { stufe, tage } = ampelInfo(erstkontakt, wiedervorlage, letzterAnruf);
+  const { stufe, tage } = ampelInfo(erstkontakt, letzterAnruf);
   const label = ampelLabel(tage);
 
   return (
