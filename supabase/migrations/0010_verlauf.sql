@@ -22,6 +22,11 @@ alter table public.anrufe add constraint anrufe_ergebnis_check
 -- muss NULL erlauben (Alt-Import aus akquise_notiz, siehe 0011).
 alter table public.anrufe alter column leitung_id drop not null;
 
+-- Anruf-Ergebnis ist jetzt das Pflichtfeld; ein neuer Status ist OPTIONAL
+-- (protokolliereAnruf: "— unverändert —") und Alt-Importe haben keinen Status.
+-- Daher status_neu NULL erlauben.
+alter table public.anrufe alter column status_neu drop not null;
+
 alter table public.schulen
   add column if not exists letztes_ergebnis text;
 alter table public.schulen
