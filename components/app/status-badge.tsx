@@ -1,13 +1,13 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { statusMeta } from "@/lib/status";
-import type { SchulStatus } from "@/lib/types";
 
 export function StatusBadge({
   status,
   className,
 }: {
-  status: SchulStatus;
+  // string (nicht SchulStatus), damit auch alte Werte tolerant angezeigt werden.
+  status: string;
   className?: string;
 }) {
   const meta = statusMeta(status);

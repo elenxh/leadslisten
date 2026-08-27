@@ -55,7 +55,7 @@ import {
 } from "@/components/app/standort-sidebar";
 import { createClient } from "@/lib/supabase/client";
 import { writeSchulOrder } from "@/lib/schul-order";
-import { STATUS_LIST } from "@/lib/status";
+import { ABSCHLUSS_STATUS, END_STATUS, STATUS_LIST } from "@/lib/status";
 import {
   SCHULART_KATEGORIEN,
   schulartKategorie,
@@ -86,14 +86,9 @@ type Bereich = "schule" | "traeger";
 
 const VIEW_STORAGE_KEY = "leadslisten:schul-view";
 
-// Diese Status gelten als erledigt: aus der aktiven Liste/Zählung ausblenden.
-const ERLEDIGT_STATUS: readonly string[] = [
-  "Kooperationsabschluss",
-  "Kein Interesse",
-  "Anderer Anbieter",
-];
-const istErledigt = (s: SchuleMitLeitung) =>
-  ERLEDIGT_STATUS.includes(s.status);
+// Endzustände (abgeschlossen) – aus der aktiven Liste/Zählung ausblenden.
+// Zentral definiert in lib/status.ts (END_STATUS).
+const istErledigt = (s: SchuleMitLeitung) => END_STATUS.includes(s.status);
 
 // "Offen" = rote Ampel (26+ Tage seit letztem gültigen Kontakt). Grau (kein
 // gültiges Datum) zählt NICHT als offen. Nutzt die zentrale Ampel-Logik.
@@ -106,10 +101,10 @@ const istBaldOffen = (s: SchuleMitLeitung): boolean =>
   ampelInfo(s.erstkontakt_am, s.wiedervorlage_am, s.letzter_anruf_am).stufe ===
   "gelb";
 
-// Abschluss-Status, getrennt ausgewertet.
-const KOOP_STATUS = "Kooperationsabschluss";
+// Abschluss-Status, getrennt ausgewertet. "Aktive Kooperationen" = Abschluss.
 const ABSAGE_STATUS: readonly string[] = ["Kein Interesse", "Anderer Anbieter"];
-const istKoop = (s: SchuleMitLeitung): boolean => s.status === KOOP_STATUS;
+const istKoop = (s: SchuleMitLeitung): boolean =>
+  s.status === ABSCHLUSS_STATUS;
 const istAbsage = (s: SchuleMitLeitung): boolean =>
   ABSAGE_STATUS.includes(s.status);
 
