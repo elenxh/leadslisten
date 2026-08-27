@@ -38,20 +38,19 @@ alter table public.schulen
 -- Der bestehende Trigger update_schule_nach_anruf() schrieb bei JEDEM Insert in
 -- anrufe schulen.status = NEW.status_neu – auch wenn status_neu NULL ist (Anruf
 -- ohne Statuswahl "— unverändert —" ODER Alt-Import). Das verletzt die NOT-NULL-
--- Regel auf schulen.status. Neu: Status nur übernehmen, wenn gesetzt; Erstkontakt
--- nur füllen, wenn leer; Ampel-Referenz nur anheben (rückdatierte/importierte
--- Anrufe senken sie nicht).
+-- Regel auf schulen.status. Fix = Original (SECURITY DEFINER, updated_at), aber
+-- Status nur übernehmen, wenn gesetzt (COALESCE -> sonst bestehenden behalten).
 create or replace function public.update_schule_nach_anruf()
 returns trigger
 language plpgsql
+security definer
+set search_path = public
 as $$
 begin
-  update public.schulen s
-  set
-    status           = coalesce(new.status_neu, s.status),
-    erstkontakt_am   = coalesce(s.erstkontakt_am, new.datum::date),
-    letzter_anruf_am = greatest(s.letzter_anruf_am, new.datum::date)
-  where s.id = new.schule_id;
+  update public.schulen
+  set status = coalesce(new.status_neu, status),
+      updated_at = now()
+  where id = new.schule_id;
   return new;
 end;
 $$;
