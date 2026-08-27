@@ -2,16 +2,10 @@
 
 export type Rolle = "leitung" | "admin";
 
-export type SchulStatus =
-  | "Neu"
-  | "Nicht erreichbar"
-  | "Erstkontakt"
-  | "Dokumente verschickt"
-  | "Persönliches Kennenlernen"
-  | "Kooperationsabschluss"
-  | "Wiedervorlage Anruf"
-  | "Kein Interesse"
-  | "Anderer Anbieter";
+// SchulStatus wird zentral aus STATUS_LIST (lib/status.ts) abgeleitet und hier
+// nur re-exportiert, damit die Werte an EINER Stelle gepflegt werden.
+import type { SchulStatus } from "@/lib/status";
+export type { SchulStatus };
 
 export type SchulTyp = "schule" | "traeger";
 

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ringForTown } from "@/lib/berlin-ring";
+import { STATUS_VALUES } from "@/lib/status";
 import type { Standort } from "@/lib/types";
 
 export type SimpleResult = { ok: true } | { ok: false; error: string };
@@ -432,17 +433,8 @@ export async function updateMarkierung(
   return { ok: true };
 }
 
-const STATUS_ERLAUBT = [
-  "Neu",
-  "Nicht erreichbar",
-  "Erstkontakt",
-  "Dokumente verschickt",
-  "Persönliches Kennenlernen",
-  "Kooperationsabschluss",
-  "Wiedervorlage Anruf",
-  "Kein Interesse",
-  "Anderer Anbieter",
-];
+// Zentrale Werteliste (lib/status.ts) – neue Status hier nicht duplizieren.
+const STATUS_ERLAUBT = STATUS_VALUES;
 
 /**
  * Setzt den Status einer Schule. Berechtigung wie bei der Schulart:

@@ -1,39 +1,73 @@
-import type { AnrufTyp, SchulStatus } from "@/lib/types";
+import type { AnrufTyp } from "@/lib/types";
+
+// =====================================================================
+// ZENTRALE Status-Konfiguration – die EINZIGE Stelle für Werte,
+// Reihenfolge und Anzeigenamen. Namen später hier ändern, nicht im Code
+// verstreut. Der Typ SchulStatus wird direkt aus dieser Liste abgeleitet.
+// =====================================================================
+export const STATUS_LIST = [
+  { value: "Neu", label: "Neu" },
+  { value: "Nicht erreichbar", label: "Nicht erreichbar" },
+  { value: "Erreicht", label: "Erreicht" },
+  { value: "Unterlagen raus", label: "Unterlagen raus" },
+  { value: "Im Gespräch", label: "Im Gespräch" },
+  { value: "Termin/Kennenlernen", label: "Termin/Kennenlernen" },
+  { value: "Abschluss", label: "Abschluss" },
+  { value: "Kein Interesse", label: "Kein Interesse" },
+  { value: "Anderer Anbieter", label: "Anderer Anbieter" },
+] as const;
+
+// Abgeleiteter Typ – ändert sich automatisch mit STATUS_LIST.
+export type SchulStatus = (typeof STATUS_LIST)[number]["value"];
+
+// Reine Werteliste (für Server-Allowlist, Excel-Import etc.).
+export const STATUS_VALUES: readonly string[] = STATUS_LIST.map((s) => s.value);
+
+// Endzustände (abgeschlossen) – werden grün markiert.
+export const END_STATUS: readonly string[] = [
+  "Abschluss",
+  "Kein Interesse",
+  "Anderer Anbieter",
+];
+
+// Der "aktive Kooperation"-Endzustand (früher "Kooperationsabschluss").
+export const ABSCHLUSS_STATUS = "Abschluss";
 
 export interface StatusMeta {
-  value: SchulStatus;
+  value: string;
   label: string;
   // Tailwind classes for the badge (light + dark friendly).
   badge: string;
+  // true = Endzustand (abgeschlossen).
+  end: boolean;
 }
 
-// Einheitliches, NEUTRALES Styling für alle Werte (keine Statusfarben –
-// die einzige Farbcodierung in der App ist die Tage-Ampel). Der Status dient
-// nur der Information und dem Filtern.
-// Kräftig, aber NEUTRAL (keine Ampelfarben) – stärkerer Kontrast + Rahmen,
-// damit der Pipeline-Status auf einen Blick erfassbar ist.
+// Neutrales Styling für laufende Pipeline-Status.
 const NEUTRAL_BADGE =
   "border-foreground/30 bg-foreground/10 text-foreground dark:border-foreground/35 dark:bg-foreground/15";
 
-export const STATUS_LIST: StatusMeta[] = [
-  { value: "Neu", label: "Neu", badge: NEUTRAL_BADGE },
-  { value: "Nicht erreichbar", label: "Nicht erreichbar", badge: NEUTRAL_BADGE },
-  { value: "Erstkontakt", label: "Erstkontakt", badge: NEUTRAL_BADGE },
-  { value: "Dokumente verschickt", label: "Dokumente verschickt", badge: NEUTRAL_BADGE },
-  { value: "Persönliches Kennenlernen", label: "Persönliches Kennenlernen", badge: NEUTRAL_BADGE },
-  { value: "Kooperationsabschluss", label: "Kooperationsabschluss", badge: NEUTRAL_BADGE },
-  { value: "Wiedervorlage Anruf", label: "Wiedervorlage Anruf", badge: NEUTRAL_BADGE },
-  { value: "Kein Interesse", label: "Kein Interesse", badge: NEUTRAL_BADGE },
-  { value: "Anderer Anbieter", label: "Anderer Anbieter", badge: NEUTRAL_BADGE },
-];
+// Grünes Styling für Endzustände (abgeschlossen).
+const GRUEN_BADGE =
+  "border-green-600/30 bg-green-600/10 text-green-700 dark:border-green-500/40 dark:bg-green-500/15 dark:text-green-300";
 
-const STATUS_MAP = new Map(STATUS_LIST.map((s) => [s.value, s]));
-
-export function statusMeta(status: SchulStatus): StatusMeta {
-  return STATUS_MAP.get(status) ?? STATUS_LIST[0];
+export function istEndStatus(status: string): boolean {
+  return END_STATUS.includes(status);
 }
 
-export function statusLabel(status: SchulStatus): string {
+// Tolerant: unbekannte (alte) Werte werden unverändert angezeigt, statt die App
+// zum Absturz zu bringen oder auf einen Default zu verfälschen.
+export function statusMeta(status: string): StatusMeta {
+  const known = STATUS_LIST.find((s) => s.value === status);
+  const end = istEndStatus(status);
+  return {
+    value: status,
+    label: known?.label ?? status,
+    badge: end ? GRUEN_BADGE : NEUTRAL_BADGE,
+    end,
+  };
+}
+
+export function statusLabel(status: string): string {
   return statusMeta(status).label;
 }
 

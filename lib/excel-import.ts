@@ -2,6 +2,7 @@ import * as XLSX from "xlsx";
 
 import { ringForTown } from "@/lib/berlin-ring";
 import { istTraegerSchulart } from "@/lib/schulart";
+import { STATUS_VALUES } from "@/lib/status";
 
 // One school as read from an Excel row (raw, before ring/stadt derivation).
 export interface RawSchule {
@@ -20,19 +21,8 @@ export interface RawSchule {
   typ: "schule" | "traeger"; // aus Schulart/Sheet abgeleitet
 }
 
-// Die 9 gültigen Status-Werte. Die Datei enthält bereits exakt diese Werte;
-// es wird NICHT normalisiert, nur wörtlich validiert.
-const STATUS_VALUES = [
-  "Neu",
-  "Nicht erreichbar",
-  "Erstkontakt",
-  "Dokumente verschickt",
-  "Persönliches Kennenlernen",
-  "Kooperationsabschluss",
-  "Wiedervorlage Anruf",
-  "Kein Interesse",
-  "Anderer Anbieter",
-];
+// Die gültigen Status-Werte kommen zentral aus lib/status.ts (STATUS_VALUES).
+// Es wird NICHT normalisiert, nur wörtlich (case-insensitiv) validiert.
 
 function pad(n: number): string {
   return String(n).padStart(2, "0");
