@@ -17,9 +17,10 @@
 
 begin;
 
--- 0) Alt-Import ohne bekannten Urheber zulassen (idempotent; steht auch in
---    0010). Historien-Zeilen werden mit leitung_id = NULL angelegt.
+-- 0) Alt-Import zulassen (idempotent; steht auch in 0010): kein Urheber und
+--    kein Status. leitung_id + status_neu müssen NULL erlauben.
 alter table public.anrufe alter column leitung_id drop not null;
+alter table public.anrufe alter column status_neu drop not null;
 
 -- 1) Backup (nur einmal – re-run-sicher).
 update public.schulen
