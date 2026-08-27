@@ -638,9 +638,18 @@ export function SchuleDetail({
                     <LeitungAvatar leitung={a.leitung} className="mt-0.5" />
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-                        <span className="font-medium">
-                          {ergebnisMeta(a.ergebnis)?.label ?? anrufTypLabel(a.typ)}
-                        </span>
+                        {ergebnisMeta(a.ergebnis) ? (
+                          <span className="font-medium">
+                            {ergebnisMeta(a.ergebnis)!.label}
+                          </span>
+                        ) : !a.leitung ? (
+                          // Historischer Eintrag aus akquise_notiz (kein Urheber).
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+                            Alt-Import
+                          </span>
+                        ) : (
+                          <span className="font-medium">{anrufTypLabel(a.typ)}</span>
+                        )}
                         {a.status_neu && (
                           <>
                             <span className="text-muted-foreground">→</span>
