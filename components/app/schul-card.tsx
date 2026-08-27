@@ -9,6 +9,7 @@ import { LeitungAvatar } from "@/components/app/leitung-avatar";
 import { SelectCheckbox } from "@/components/app/select-checkbox";
 import { SchulMarkierung } from "@/components/app/schul-markierung";
 import { AmpelBadge } from "@/components/app/ampel";
+import { ErgebnisMarker, WiedervorlageMarker } from "@/components/app/anruf-marker";
 import { ringLabel } from "@/lib/berlin-ring";
 import type { SchuleMitLeitung } from "@/lib/types";
 
@@ -77,10 +78,15 @@ export function SchulCard({
             {/* Tage-Ampel = einzige Farbcodierung */}
             <AmpelBadge
               erstkontakt={schule.erstkontakt_am}
-              wiedervorlage={schule.wiedervorlage_am}
               letzterAnruf={schule.letzter_anruf_am}
             />
             <StatusBadge status={schule.status} />
+            <ErgebnisMarker
+              ergebnis={schule.letztes_ergebnis}
+              serie={schule.nicht_erreicht_serie}
+              compact
+            />
+            <WiedervorlageMarker wiedervorlage={schule.wiedervorlage_am} />
             {schule.schulart && (
               <Badge variant="secondary" className="font-normal">
                 {schule.schulart}

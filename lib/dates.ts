@@ -23,6 +23,15 @@ export function todayISO(): string {
   return ymdInBusinessTZ();
 }
 
+// "heute + N Tage" als YYYY-MM-DD (deterministisch über Date.UTC). Für die
+// Wiedervorlage-Schnellwahl (z. B. +7/+14/+28 Tage).
+export function plusTageISO(tage: number): string {
+  const [y, m, d] = todayISO().split("-").map(Number);
+  const base = new Date(Date.UTC(y, m - 1, d));
+  base.setUTCDate(base.getUTCDate() + tage);
+  return base.toISOString().slice(0, 10);
+}
+
 export function toISO(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");

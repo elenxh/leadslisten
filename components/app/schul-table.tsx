@@ -8,6 +8,7 @@ import { LeitungAvatar } from "@/components/app/leitung-avatar";
 import { SelectCheckbox } from "@/components/app/select-checkbox";
 import { SchulMarkierung } from "@/components/app/schul-markierung";
 import { AmpelBadge } from "@/components/app/ampel";
+import { ErgebnisMarker, WiedervorlageMarker } from "@/components/app/anruf-marker";
 import type { SchuleMitLeitung } from "@/lib/types";
 
 /**
@@ -101,7 +102,6 @@ export function SchulTable({
                   </span>
                   <AmpelBadge
                     erstkontakt={s.erstkontakt_am}
-                    wiedervorlage={s.wiedervorlage_am}
                     letzterAnruf={s.letzter_anruf_am}
                   />
                 </div>
@@ -117,20 +117,25 @@ export function SchulTable({
                 {s.schulart ?? "—"}
               </span>
 
-              {/* Status – inline editierbar für berechtigte Zeilen */}
-              <span className="w-auto shrink-0 sm:w-52">
+              {/* Status (+ Ergebnis-/Wiedervorlage-Marker) */}
+              <span className="flex w-auto shrink-0 flex-col gap-0.5 sm:w-52">
                 {canMark(s.standort_id) ? (
                   <InlineStatus schuleId={s.id} status={s.status} />
                 ) : (
                   <StatusBadge status={s.status} />
                 )}
+                <ErgebnisMarker
+                  ergebnis={s.letztes_ergebnis}
+                  serie={s.nicht_erreicht_serie}
+                  compact
+                />
+                <WiedervorlageMarker wiedervorlage={s.wiedervorlage_am} />
               </span>
 
               {/* Kontakt-Ampel – Desktop */}
               <span className="hidden w-24 shrink-0 sm:block">
                 <AmpelBadge
                   erstkontakt={s.erstkontakt_am}
-                  wiedervorlage={s.wiedervorlage_am}
                   letzterAnruf={s.letzter_anruf_am}
                 />
               </span>

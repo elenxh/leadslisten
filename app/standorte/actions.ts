@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ringForTown } from "@/lib/berlin-ring";
 import { STATUS_VALUES } from "@/lib/status";
+import { ERGEBNIS_VALUES } from "@/lib/anruf";
 import type { Standort } from "@/lib/types";
 
 export type SimpleResult = { ok: true } | { ok: false; error: string };
@@ -471,8 +472,9 @@ export interface AnrufInput {
   schuleId: string;
   leitungId: string;
   datum: string; // YYYY-MM-DD (Datum des Anrufs)
-  status: string; // Ergebnis (einer der 9 Pipeline-Werte)
-  wiedervorlage: string | null; // nächste geplante Wiedervorlage (oder null)
+  ergebnis: string; // erreicht | nicht_erreicht | rueckruf (Pflicht)
+  status: string | null; // optional neuer Pipeline-Status (null = unverändert)
+  wiedervorlage: string | null; // optional nächste Wiedervorlage
   notiz: string | null;
 }
 
@@ -486,7 +488,13 @@ export async function protokolliereAnruf(
 ): Promise<SimpleResult> {
   const user = await currentUser();
   if (!user) return { ok: false, error: "Nicht angemeldet." };
-  if (!STATUS_ERLAUBT.includes(input.status)) {
+  if (!ERGEBNIS_VALUES.includes(input.ergebnis)) {
+    return { ok: false, error: "Bitte ein Ergebnis wählen." };
+  }
+  // Status ist optional; nur wenn gesetzt, muss er gültig sein.
+  const neuerStatus =
+    input.status && input.status.trim() ? input.status.trim() : null;
+  if (neuerStatus && !STATUS_ERLAUBT.includes(neuerStatus)) {
     return { ok: false, error: "Ungültiger Status." };
   }
   const datum = (input.datum || "").slice(0, 10);
@@ -515,17 +523,39 @@ export async function protokolliereAnruf(
     leitung_id: input.leitungId,
     datum: `${datum}T12:00:00`,
     typ: "telefonat",
-    status_neu: input.status,
+    ergebnis: input.ergebnis,
+    status_neu: neuerStatus,
     text: (input.notiz ?? "").trim() || null,
   });
   if (aErr) return { ok: false, error: aErr.message };
 
+  // Marker neu berechnen: letztes Ergebnis + führende "nicht erreicht"-Serie
+  // (robust auch bei rückdatierten Einträgen – aus der Tabelle, nicht inkrement.).
+  const { data: verlauf } = await ac.admin
+    .from("anrufe")
+    .select("ergebnis, datum, id")
+    .eq("schule_id", input.schuleId)
+    .order("datum", { ascending: false })
+    .order("id", { ascending: false });
+  const rows = (verlauf ?? []) as { ergebnis: string | null }[];
+  const letztesErgebnis = rows[0]?.ergebnis ?? null;
+  let serie = 0;
+  for (const r of rows) {
+    if (r.ergebnis === "nicht_erreicht") serie++;
+    else break;
+  }
+
+  // Ampel-Reset bei JEDEM Anruf (auch "nicht erreicht"): letzter_anruf_am hoch.
   const cur = (schule?.letzter_anruf_am as string | null) ?? null;
   const update: Record<string, unknown> = {
-    status: input.status,
-    wiedervorlage_am: input.wiedervorlage || null,
     letzter_anruf_am: !cur || datum > cur ? datum : cur,
+    letztes_ergebnis: letztesErgebnis,
+    nicht_erreicht_serie: serie,
   };
+  // Status nur ändern, wenn explizit gewählt ("nicht erreicht" ändert nichts).
+  if (neuerStatus) update.status = neuerStatus;
+  // Wiedervorlage nur setzen, wenn angegeben (sonst bestehende beibehalten).
+  if (input.wiedervorlage) update.wiedervorlage_am = input.wiedervorlage;
   if (!schule?.erstkontakt_am) update.erstkontakt_am = datum;
 
   const { error: sErr } = await ac.admin

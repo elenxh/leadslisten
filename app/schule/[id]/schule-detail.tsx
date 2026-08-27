@@ -53,6 +53,8 @@ import {
   updateStatus,
 } from "@/app/standorte/actions";
 import { AmpelBadge } from "@/components/app/ampel";
+import { ErgebnisMarker, WiedervorlageMarker } from "@/components/app/anruf-marker";
+import { ergebnisMeta } from "@/lib/anruf";
 import { KontakteSection } from "@/components/app/kontakte-section";
 import { readSchulOrder } from "@/lib/schul-order";
 import { ringLabel } from "@/lib/berlin-ring";
@@ -320,9 +322,13 @@ export function SchuleDetail({
             <StatusBadge status={statusVal} />
             <AmpelBadge
               erstkontakt={schule.erstkontakt_am}
-              wiedervorlage={schule.wiedervorlage_am}
               letzterAnruf={schule.letzter_anruf_am}
             />
+            <ErgebnisMarker
+              ergebnis={schule.letztes_ergebnis}
+              serie={schule.nicht_erreicht_serie}
+            />
+            <WiedervorlageMarker wiedervorlage={schule.wiedervorlage_am} />
             {schule.leitung && (
               <span className="flex items-center gap-1 text-xs text-muted-foreground">
                 <LeitungAvatar leitung={schule.leitung} className="size-5" />
@@ -431,11 +437,7 @@ export function SchuleDetail({
         <CardHeader className="flex flex-row items-center justify-between pb-3">
           <CardTitle className="text-base">Akquise</CardTitle>
           {canEditSchulart && (
-            <AnrufDialog
-              schuleId={schule.id}
-              leitungId={me.id}
-              currentStatus={statusVal}
-            />
+            <AnrufDialog schuleId={schule.id} leitungId={me.id} />
           )}
         </CardHeader>
         <CardContent className="space-y-4">
@@ -636,7 +638,9 @@ export function SchuleDetail({
                     <LeitungAvatar leitung={a.leitung} className="mt-0.5" />
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-                        <span className="font-medium">{anrufTypLabel(a.typ)}</span>
+                        <span className="font-medium">
+                          {ergebnisMeta(a.ergebnis)?.label ?? anrufTypLabel(a.typ)}
+                        </span>
                         {a.status_neu && (
                           <>
                             <span className="text-muted-foreground">→</span>

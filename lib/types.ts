@@ -59,6 +59,9 @@ export interface Schule {
   wiedervorlage_am: string | null; // ISO date – kann aktualisiert werden
   letzter_anruf_am: string | null; // ISO date – jüngster protokollierter Anruf
   akquise_notiz: string | null;
+  akquise_notiz_backup: string | null; // Sicherheitskopie vor der Verlauf-Migration
+  letztes_ergebnis: string | null; // letztes Anruf-Ergebnis (Marker)
+  nicht_erreicht_serie: number; // aufeinanderfolgende "nicht erreicht"
   zustaendig: string | null; // FK -> leitungen.id
   standort_id: string | null; // FK -> standorte.id
   markierung_farbe: string | null; // persönliche Farbmarkierung
@@ -88,6 +91,7 @@ export interface Anruf {
   leitung_id: string | null;
   datum: string; // ISO timestamp / date
   typ: AnrufTyp;
+  ergebnis: string | null; // 'erreicht' | 'nicht_erreicht' | 'rueckruf' | null
   status_neu: SchulStatus | null;
   text: string | null;
 }
