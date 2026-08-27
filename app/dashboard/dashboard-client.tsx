@@ -450,7 +450,9 @@ export function DashboardClient({
     const c = {
       all: preSchulart.length,
       grundschule: 0,
+      gemeinschaftsschule: 0,
       weiterfuehrende: 0,
+      gymnasium: 0,
       berufsschule: 0,
       weitere: 0,
     };
@@ -700,13 +702,13 @@ export function DashboardClient({
 
         {/* Tabs */}
         <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
-          <TabsList className="flex w-full flex-wrap">
-            <TabsTrigger value="meine">Meine</TabsTrigger>
-            <TabsTrigger value="alle">Aktiv</TabsTrigger>
-            <TabsTrigger value="baldoffen">Bald offen</TabsTrigger>
-            <TabsTrigger value="faellig">Offen</TabsTrigger>
-            <TabsTrigger value="koop">Aktive Kooperationen</TabsTrigger>
-            <TabsTrigger value="absage">Kein Interesse / Andere</TabsTrigger>
+          <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
+            <TabsTrigger value="meine" className="h-7 flex-none">Meine</TabsTrigger>
+            <TabsTrigger value="alle" className="h-7 flex-none">Aktiv</TabsTrigger>
+            <TabsTrigger value="baldoffen" className="h-7 flex-none">Bald offen</TabsTrigger>
+            <TabsTrigger value="faellig" className="h-7 flex-none">Offen</TabsTrigger>
+            <TabsTrigger value="koop" className="h-7 flex-none">Aktive Kooperationen</TabsTrigger>
+            <TabsTrigger value="absage" className="h-7 flex-none">Kein Interesse / Andere</TabsTrigger>
           </TabsList>
         </Tabs>
 
@@ -888,13 +890,15 @@ export function DashboardClient({
             value={schulartFilter}
             onValueChange={(v) => setSchulartFilter(v as SchulartKategorie | "all")}
           >
-            <TabsList className="flex w-full flex-wrap">
-              <TabsTrigger value="all">
+            {/* 6 Schularten + "Alle": umbrechende Reiterleiste (feste Höhe je
+                Reiter, kein flex-1) -> keine gequetschten/abgeschnittenen Reiter. */}
+            <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
+              <TabsTrigger value="all" className="h-7 flex-none">
                 Alle
                 <SchulartCount n={schulartCounts.all} active={schulartFilter === "all"} />
               </TabsTrigger>
               {SCHULART_KATEGORIEN.map((k) => (
-                <TabsTrigger key={k.value} value={k.value}>
+                <TabsTrigger key={k.value} value={k.value} className="h-7 flex-none">
                   {k.label}
                   <SchulartCount
                     n={schulartCounts[k.value]}

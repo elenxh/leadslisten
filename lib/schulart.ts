@@ -1,9 +1,11 @@
-// Grobe Kategorisierung der (frei eingetragenen) Schulart in 4 Gruppen.
+// Kategorisierung der (frei eingetragenen) Schulart in 6 Gruppen.
 // Wird NUR im Code berechnet, nicht in der DB gespeichert.
 
 export type SchulartKategorie =
   | "grundschule"
+  | "gemeinschaftsschule"
   | "weiterfuehrende"
+  | "gymnasium"
   | "berufsschule"
   | "weitere";
 
@@ -12,10 +14,12 @@ export interface SchulartKategorieMeta {
   label: string;
 }
 
-// Reihenfolge = Anzeige-Reihenfolge der Tabs.
+// Reihenfolge = Anzeige-Reihenfolge der Reiter.
 export const SCHULART_KATEGORIEN: SchulartKategorieMeta[] = [
   { value: "grundschule", label: "Grundschule" },
+  { value: "gemeinschaftsschule", label: "Gemeinschaftsschule" },
   { value: "weiterfuehrende", label: "Weiterführende" },
+  { value: "gymnasium", label: "Gymnasium" },
   { value: "berufsschule", label: "Berufsschule" },
   { value: "weitere", label: "Weitere" },
 ];
@@ -26,12 +30,22 @@ export const SCHULART_KATEGORIEN: SchulartKategorieMeta[] = [
 // Kategorie, deren Keyword passt, gewinnt. Neue Schularten einfach als Keyword
 // in die passende Liste eintragen. Alles OHNE Treffer (inkl. leer/unbekannt)
 // landet in "Weitere" – so wird garantiert KEINE Schule unsichtbar.
+//
+// Zuordnung (Berlin):
+//   Grundschule           -> "grundschule"
+//   Gemeinschaftsschule   -> "gemeinschaft"
+//   Weiterführende        -> Integrierte Sekundarschule + Sekundarschule ("sekundar")
+//   Gymnasium             -> "gymnasium"
+//   Berufsschule          -> Berufsfachschule + alles Berufliche
+//   Weitere               -> Oberschule, ZBW + Unbekanntes/Leeres (Fallback)
 // =====================================================================
 export const SCHULART_KEYWORDS: {
   value: Exclude<SchulartKategorie, "weitere">;
   keywords: string[];
 }[] = [
   { value: "grundschule", keywords: ["grundschule"] },
+  { value: "gemeinschaftsschule", keywords: ["gemeinschaft"] },
+  { value: "gymnasium", keywords: ["gymnasium"] },
   {
     value: "berufsschule",
     keywords: [
@@ -44,9 +58,7 @@ export const SCHULART_KEYWORDS: {
   {
     value: "weiterfuehrende",
     keywords: [
-      "gymnasium",
       "sekundar", // (Integrierte) Sekundarschule, Sekundarstufe
-      "gemeinschaft", // Gemeinschaftsschule
       "gesamtschule",
       "realschule",
       "hauptschule",
@@ -60,8 +72,7 @@ export const SCHULART_KEYWORDS: {
 
 /**
  * Leitet aus der freien `schulart` eine Kategorie ab. Erste Kategorie mit
- * passendem Schlüsselwort gewinnt (Priorität: Grundschule > Berufsschule >
- * Weiterführende); ohne Treffer -> "Weitere" (Fallback).
+ * passendem Schlüsselwort gewinnt; ohne Treffer -> "Weitere" (Fallback).
  */
 export function schulartKategorie(
   schulart: string | null | undefined,
