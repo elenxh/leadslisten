@@ -384,12 +384,22 @@ export function DashboardClient({
     }
   }, [tab, mine, bereichSchulen, absageFilter]);
 
-  // Schulzahlen je Standort für die Seitenleiste – bezogen auf den aktuellen
-  // Reiter (Bereich + aktiv/erledigt), damit Badges zur Ansicht passen.
+  // Zähl-Basis für die Seitenleiste: der VOLLE Standort-Datensatz im aktuellen
+  // Bereich (Schule/Träger) + Admin/Leitung-Scope – bewusst UNABHÄNGIG von
+  // tab/statusFilter/markFilter/Suche. Dieselbe Basis wie die "Schulen gesamt"-
+  // Kachel (aktive Schulen ohne Abschlüsse), damit die Badges nicht beim
+  // Reiterwechsel springen und die Zahl des gewählten Standorts der Kachel
+  // entspricht.
+  const sidebarBase = useMemo(
+    () => (admin ? bereichSchulen : mine).filter((s) => !istErledigt(s)),
+    [admin, bereichSchulen, mine],
+  );
+
+  // Schulzahlen je Standort für die Seitenleiste (volle Standort-Zählbasis).
   const sidebarData: SidebarData = useMemo(() => {
     const counts: Record<string, number> = {};
     let ohneCount = 0;
-    for (const s of tabbed) {
+    for (const s of sidebarBase) {
       if (s.standort_id) counts[s.standort_id] = (counts[s.standort_id] ?? 0) + 1;
       else ohneCount++;
     }
@@ -398,9 +408,9 @@ export function DashboardClient({
       vorgeschlagen,
       counts,
       ohneCount,
-      total: tabbed.length,
+      total: sidebarBase.length,
     };
-  }, [tabbed, standorte, vorgeschlagen]);
+  }, [sidebarBase, standorte, vorgeschlagen]);
 
   // Alle Filter AUSSER der Schulart-Kategorie (ohne Suche – die wird separat,
   // reiterübergreifend behandelt) – Basis für die Tab-Zählung.
