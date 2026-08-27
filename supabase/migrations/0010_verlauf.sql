@@ -18,6 +18,10 @@ alter table public.anrufe drop constraint if exists anrufe_ergebnis_check;
 alter table public.anrufe add constraint anrufe_ergebnis_check
   check (ergebnis is null or ergebnis in ('erreicht', 'nicht_erreicht', 'rueckruf'));
 
+-- Historische / importierte Anrufe haben keinen bekannten Urheber -> leitung_id
+-- muss NULL erlauben (Alt-Import aus akquise_notiz, siehe 0011).
+alter table public.anrufe alter column leitung_id drop not null;
+
 alter table public.schulen
   add column if not exists letztes_ergebnis text;
 alter table public.schulen
