@@ -63,7 +63,6 @@ import {
   type SchulartKategorie,
 } from "@/lib/schulart";
 import { RING_OPTIONS, ringLabel } from "@/lib/berlin-ring";
-import { isDueThisWeek } from "@/lib/dates";
 import { ampelInfo } from "@/lib/ampel";
 import type {
   FarbLegende,
@@ -79,7 +78,6 @@ type TabKey =
   | "meine"
   | "baldoffen"
   | "faellig"
-  | "woche"
   | "koop"
   | "absage"
   | "alle";
@@ -374,8 +372,6 @@ export function DashboardClient({
         return aktiv.filter(istBaldOffen);
       case "faellig":
         return aktiv.filter(istOffen);
-      case "woche":
-        return aktiv.filter((s) => isDueThisWeek(s.wiedervorlage_am));
       case "koop":
         return bereichSchulen.filter(istKoop);
       case "absage": {
@@ -695,7 +691,6 @@ export function DashboardClient({
             <TabsTrigger value="alle">Aktiv</TabsTrigger>
             <TabsTrigger value="baldoffen">Bald offen</TabsTrigger>
             <TabsTrigger value="faellig">Offen</TabsTrigger>
-            <TabsTrigger value="woche">Diese Woche</TabsTrigger>
             <TabsTrigger value="koop">Aktive Kooperationen</TabsTrigger>
             <TabsTrigger value="absage">Kein Interesse / Andere</TabsTrigger>
           </TabsList>
