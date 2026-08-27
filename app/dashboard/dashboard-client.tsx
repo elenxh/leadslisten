@@ -74,13 +74,8 @@ import type {
 
 type LegendeRow = Pick<FarbLegende, "standort_id" | "farbe" | "bezeichnung">;
 
-type TabKey =
-  | "meine"
-  | "baldoffen"
-  | "faellig"
-  | "koop"
-  | "absage"
-  | "alle";
+// Filter-Zustand, gesteuert über die klickbaren KPI-Kacheln.
+type TabKey = "baldoffen" | "faellig" | "koop" | "absage" | "alle";
 type ViewMode = "kachel" | "liste";
 type Bereich = "schule" | "traeger";
 
@@ -180,7 +175,9 @@ export function DashboardClient({
   const admin = me.rolle === "admin";
 
   const [bereich, setBereich] = useState<Bereich>("schule");
-  const [tab, setTab] = useState<TabKey>(admin ? "alle" : "meine");
+  const [tab, setTab] = useState<TabKey>("alle");
+  // KPI-Kachel togglen: aktive Kachel erneut klicken -> zurück auf "alle".
+  const toggleTab = (key: TabKey) => setTab((t) => (t === key ? "alle" : key));
   // Sub-Filter innerhalb der "Kein Interesse / Andere Anbieter"-Ansicht.
   const [absageFilter, setAbsageFilter] = useState<
     "alle" | "Kein Interesse" | "Anderer Anbieter"
@@ -256,7 +253,7 @@ export function DashboardClient({
 
   function changeBereich(next: Bereich) {
     setBereich(next);
-    setTab(admin ? "alle" : "meine");
+    setTab("alle");
     setSchulartFilter("all");
     setStandortFilter(STANDORT_ALLE);
     setBezirkFilter("all");
@@ -303,11 +300,6 @@ export function DashboardClient({
     };
   }, [router]);
 
-  const mine = useMemo(
-    () => bereichSchulen.filter((s) => s.zustaendig === me.id),
-    [bereichSchulen, me.id],
-  );
-
   // Standort-Scope: gleiche Logik wie die Liste (konkreter Standort / alle / ohne).
   const matchStandort = useCallback(
     (s: SchuleMitLeitung) => {
@@ -319,13 +311,13 @@ export function DashboardClient({
   );
 
   // Standort-Scope für die KPI-Kacheln: der KOMPLETTE Datensatz des aktiven
-  // Standorts (Admin: alle, Leitung: eigene). BEWUSST unabhängig von tab,
-  // statusFilter, markFilter, Suche & Co. – die Kachel-Zahlen zeigen immer die
-  // volle Gesamtzahl und ändern sich NICHT, wenn man eine Kachel/einen Reiter
-  // wählt (das filtert nur die Liste darunter).
+  // Standorts (Admin wie Leitung – Leitungen sind bereits per RLS auf ihre
+  // Standorte beschränkt). BEWUSST unabhängig von tab/statusFilter/markFilter/
+  // Suche – die Kachel-Zahlen zeigen immer die volle Gesamtzahl und ändern sich
+  // NICHT, wenn man eine Kachel als Filter wählt (das filtert nur die Liste).
   const standortScope = useMemo(
-    () => (admin ? bereichSchulen : mine).filter(matchStandort),
-    [admin, bereichSchulen, mine, matchStandort],
+    () => bereichSchulen.filter(matchStandort),
+    [bereichSchulen, matchStandort],
   );
   const stats = useMemo(() => {
     const aktiv = standortScope.filter((s) => !istErledigt(s));
@@ -364,8 +356,6 @@ export function DashboardClient({
     // Aktive Liste blendet Abschluss-Status aus; die Abschluss-Reiter zeigen sie.
     const aktiv = bereichSchulen.filter((s) => !istErledigt(s));
     switch (tab) {
-      case "meine":
-        return mine.filter((s) => !istErledigt(s));
       case "baldoffen":
         return aktiv.filter(istBaldOffen);
       case "faellig":
@@ -382,7 +372,7 @@ export function DashboardClient({
       default:
         return aktiv;
     }
-  }, [tab, mine, bereichSchulen, absageFilter]);
+  }, [tab, bereichSchulen, absageFilter]);
 
   // Zähl-Basis für die Seitenleiste: ALLE Schulen des Standorts im aktuellen
   // Bereich (Schule/Träger) + Admin/Leitung-Scope, ABZÜGLICH der Absagen
@@ -391,8 +381,8 @@ export function DashboardClient({
   // Reiterwechsel nicht; ändert sich aber, wenn sich ein Status tatsächlich
   // ändert (Datenänderung).
   const sidebarBase = useMemo(
-    () => (admin ? bereichSchulen : mine).filter((s) => !istAbsage(s)),
-    [admin, bereichSchulen, mine],
+    () => bereichSchulen.filter((s) => !istAbsage(s)),
+    [bereichSchulen],
   );
 
   // Schulzahlen je Standort für die Seitenleiste (volle Standort-Zählbasis).
@@ -620,24 +610,16 @@ export function DashboardClient({
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
             <StatCard
-              label={admin ? `${nomen} gesamt` : `Meine ${nomen}`}
+              label={`${nomen} gesamt`}
               value={stats.mine}
               icon={School}
               accent="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"
-              active={tab === (admin ? "alle" : "meine")}
+              active={tab === "alle"}
               onClick={() => {
-                setTab(admin ? "alle" : "meine");
+                setTab("alle");
                 setStatusFilter("all");
                 setMarkFilter("all");
               }}
-            />
-            <StatCard
-              label="Bald offen"
-              value={stats.baldOffen}
-              icon={Clock}
-              accent="bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-200"
-              active={tab === "baldoffen"}
-              onClick={() => setTab("baldoffen")}
             />
             <StatCard
               label="Offen"
@@ -645,7 +627,15 @@ export function DashboardClient({
               icon={CalendarClock}
               accent="bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-200"
               active={tab === "faellig"}
-              onClick={() => setTab("faellig")}
+              onClick={() => toggleTab("faellig")}
+            />
+            <StatCard
+              label="Bald offen"
+              value={stats.baldOffen}
+              icon={Clock}
+              accent="bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-200"
+              active={tab === "baldoffen"}
+              onClick={() => toggleTab("baldoffen")}
             />
             <StatCard
               label="Aktive Kooperationen"
@@ -653,7 +643,7 @@ export function DashboardClient({
               icon={Handshake}
               accent="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200"
               active={tab === "koop"}
-              onClick={() => setTab("koop")}
+              onClick={() => toggleTab("koop")}
             />
             <StatCard
               label="Kein Interesse / Andere Anbieter"
@@ -662,8 +652,12 @@ export function DashboardClient({
               accent="bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
               active={tab === "absage"}
               onClick={() => {
-                setTab("absage");
-                setAbsageFilter("alle");
+                if (tab === "absage") {
+                  setTab("alle");
+                } else {
+                  setTab("absage");
+                  setAbsageFilter("alle");
+                }
               }}
             />
           </div>
@@ -700,17 +694,8 @@ export function DashboardClient({
           </Dialog>
         </div>
 
-        {/* Tabs */}
-        <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
-          <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
-            <TabsTrigger value="meine" className="h-7 flex-none">Meine</TabsTrigger>
-            <TabsTrigger value="alle" className="h-7 flex-none">Aktiv</TabsTrigger>
-            <TabsTrigger value="baldoffen" className="h-7 flex-none">Bald offen</TabsTrigger>
-            <TabsTrigger value="faellig" className="h-7 flex-none">Offen</TabsTrigger>
-            <TabsTrigger value="koop" className="h-7 flex-none">Aktive Kooperationen</TabsTrigger>
-            <TabsTrigger value="absage" className="h-7 flex-none">Kein Interesse / Andere</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        {/* Die Filterung läuft über die klickbaren KPI-Kacheln oben – keine
+            separate Status-Reiterleiste mehr. */}
 
         {/* Sub-Dashboard der Absagen-Ansicht: Alle / Kein Interesse / Andere */}
         {tab === "absage" && (
@@ -742,14 +727,15 @@ export function DashboardClient({
 
         {/* Filter */}
         <div className="space-y-2">
-          {/* Zeile 1: großes, prominentes Suchfeld */}
+          {/* Zeile 1: großes, prominentes Suchfeld – deutlich abgehoben durch
+              stärkere Umrandung, gefüllte Fläche und leichten Schatten. */}
           <div className="relative">
             <Search className="absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={`${nomenSg}, Bezirk, Telefon, Ansprechpartner suchen…`}
-              className="h-12 w-full pl-11 text-base"
+              className="h-12 w-full rounded-xl border-2 border-input bg-muted/40 pl-11 text-base shadow-sm transition-colors placeholder:text-muted-foreground/80 hover:bg-muted/60 focus-visible:border-primary focus-visible:bg-background"
             />
           </div>
 
