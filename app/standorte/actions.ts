@@ -529,43 +529,247 @@ export async function protokolliereAnruf(
   });
   if (aErr) return { ok: false, error: aErr.message };
 
-  // Marker neu berechnen: letztes Ergebnis + führende "nicht erreicht"-Serie
-  // (robust auch bei rückdatierten Einträgen – aus der Tabelle, nicht inkrement.).
-  const { data: verlauf } = await ac.admin
+  // Schul-Felder, die NICHT aus dem Verlauf abgeleitet sind:
+  const update: Record<string, unknown> = {};
+  // Status nur ändern, wenn explizit gewählt ("nicht erreicht" ändert nichts).
+  if (neuerStatus) update.status = neuerStatus;
+  // Wiedervorlage nur setzen, wenn angegeben (sonst bestehende beibehalten).
+  if (input.wiedervorlage) update.wiedervorlage_am = input.wiedervorlage;
+  if (!schule?.erstkontakt_am) update.erstkontakt_am = datum;
+  if (Object.keys(update).length > 0) {
+    const { error: sErr } = await ac.admin
+      .from("schulen")
+      .update(update)
+      .eq("id", input.schuleId);
+    if (sErr) return { ok: false, error: sErr.message };
+  }
+
+  // Abgeleitete Felder (Marker + Ampel-Referenz) frisch aus dem Verlauf.
+  await recomputeSchuleMarker(ac.admin, input.schuleId);
+
+  revalidatePath("/dashboard");
+  revalidatePath(`/schule/${input.schuleId}`);
+  return { ok: true };
+}
+
+/**
+ * Berechnet die aus dem Verlauf abgeleiteten Schul-Felder neu und schreibt sie:
+ * - letztes_ergebnis           = Ergebnis des jüngsten Anrufs
+ * - nicht_erreicht_serie       = führende "nicht erreicht" seit letztem Erfolg
+ * - letzter_anruf_am (Ampel)   = jüngstes Anruf-Datum (oder NULL)
+ * Robust bei rückdatierten Einträgen; nach Anlegen/Ändern/Löschen aufrufen.
+ */
+async function recomputeSchuleMarker(
+  admin: AdminClient,
+  schuleId: string,
+): Promise<void> {
+  const { data } = await admin
     .from("anrufe")
-    .select("ergebnis, datum, id")
-    .eq("schule_id", input.schuleId)
+    .select("ergebnis, datum")
+    .eq("schule_id", schuleId)
     .order("datum", { ascending: false })
     .order("id", { ascending: false });
-  const rows = (verlauf ?? []) as { ergebnis: string | null }[];
+  const rows = (data ?? []) as { ergebnis: string | null; datum: string }[];
+
   const letztesErgebnis = rows[0]?.ergebnis ?? null;
   let serie = 0;
   for (const r of rows) {
     if (r.ergebnis === "nicht_erreicht") serie++;
     else break;
   }
+  const letzterAnruf = rows[0]?.datum ? rows[0].datum.slice(0, 10) : null;
 
-  // Ampel-Reset bei JEDEM Anruf (auch "nicht erreicht"): letzter_anruf_am hoch.
-  const cur = (schule?.letzter_anruf_am as string | null) ?? null;
-  const update: Record<string, unknown> = {
-    letzter_anruf_am: !cur || datum > cur ? datum : cur,
-    letztes_ergebnis: letztesErgebnis,
-    nicht_erreicht_serie: serie,
+  await admin
+    .from("schulen")
+    .update({
+      letztes_ergebnis: letztesErgebnis,
+      nicht_erreicht_serie: serie,
+      letzter_anruf_am: letzterAnruf,
+    })
+    .eq("id", schuleId);
+}
+
+export interface SchuleFelder {
+  name?: string;
+  schulart?: string | null;
+  bezirk?: string | null;
+  stadt?: string | null;
+  adresse?: string | null;
+  homepage?: string | null;
+  ansprechpartner?: string | null;
+  rolle_ap?: string | null;
+  mail?: string | null;
+  tel?: string | null;
+  status?: string;
+  erstkontakt_am?: string | null;
+  wiedervorlage_am?: string | null;
+  akquise_notiz?: string | null;
+  zustaendig?: string | null; // nur Admin
+  standort_id?: string | null; // nur Admin
+}
+
+/**
+ * Bearbeitet die Stammdaten/Akquise-Felder einer Schule. Admin überall, SL nur
+ * für Schulen eines eigenen Standorts (darfSchuleBearbeiten). zustaendig und
+ * standort_id werden NUR für Admins geschrieben (zusätzlich per DB-Trigger
+ * gegen Umgehung abgesichert).
+ */
+export async function updateSchuleFelder(
+  schuleId: string,
+  felder: SchuleFelder,
+): Promise<SimpleResult> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: "Nicht angemeldet." };
+
+  const ac = adminClientOrError();
+  if (!ac.ok) return ac;
+
+  const perm = await darfSchuleBearbeiten(ac.admin, user.id, user.isAdmin, schuleId);
+  if (!perm.ok) return perm;
+
+  const norm = (v: string | null | undefined) => {
+    const t = (v ?? "").trim();
+    return t.length ? t : null;
   };
-  // Status nur ändern, wenn explizit gewählt ("nicht erreicht" ändert nichts).
-  if (neuerStatus) update.status = neuerStatus;
-  // Wiedervorlage nur setzen, wenn angegeben (sonst bestehende beibehalten).
-  if (input.wiedervorlage) update.wiedervorlage_am = input.wiedervorlage;
-  if (!schule?.erstkontakt_am) update.erstkontakt_am = datum;
+  const update: Record<string, unknown> = {};
 
-  const { error: sErr } = await ac.admin
+  if (felder.name !== undefined) {
+    const n = (felder.name ?? "").trim();
+    if (!n) return { ok: false, error: "Name ist erforderlich." };
+    update.name = n;
+  }
+  if (felder.schulart !== undefined) update.schulart = norm(felder.schulart);
+  if (felder.bezirk !== undefined) update.bezirk = norm(felder.bezirk);
+  if (felder.stadt !== undefined) {
+    update.stadt = norm(felder.stadt);
+    update.ring = ringForTown(norm(felder.stadt)); // Berlin-Ring konsistent halten
+  }
+  if (felder.adresse !== undefined) update.adresse = norm(felder.adresse);
+  if (felder.homepage !== undefined) update.homepage = norm(felder.homepage);
+  if (felder.ansprechpartner !== undefined)
+    update.ansprechpartner = norm(felder.ansprechpartner);
+  if (felder.rolle_ap !== undefined) update.rolle_ap = norm(felder.rolle_ap);
+  if (felder.mail !== undefined) update.mail = norm(felder.mail);
+  if (felder.tel !== undefined) update.tel = norm(felder.tel);
+  if (felder.status !== undefined) {
+    if (!STATUS_ERLAUBT.includes(felder.status)) {
+      return { ok: false, error: "Ungültiger Status." };
+    }
+    update.status = felder.status;
+  }
+  if (felder.erstkontakt_am !== undefined)
+    update.erstkontakt_am = felder.erstkontakt_am || null;
+  if (felder.wiedervorlage_am !== undefined)
+    update.wiedervorlage_am = felder.wiedervorlage_am || null;
+  if (felder.akquise_notiz !== undefined)
+    update.akquise_notiz = (felder.akquise_notiz ?? "").trim() || null;
+
+  // NUR Admin darf Zuständigkeit/Standort ändern.
+  if (user.isAdmin) {
+    if (felder.zustaendig !== undefined)
+      update.zustaendig = felder.zustaendig || null;
+    if (felder.standort_id !== undefined)
+      update.standort_id = felder.standort_id || null;
+  }
+
+  if (Object.keys(update).length === 0) return { ok: true };
+
+  const { error } = await ac.admin
     .from("schulen")
     .update(update)
-    .eq("id", input.schuleId);
-  if (sErr) return { ok: false, error: sErr.message };
+    .eq("id", schuleId);
+  if (error) return { ok: false, error: error.message };
 
   revalidatePath("/dashboard");
-  revalidatePath(`/schule/${input.schuleId}`);
+  revalidatePath(`/schule/${schuleId}`);
+  return { ok: true };
+}
+
+export interface AnrufUpdateInput {
+  text?: string | null;
+  datum?: string | null; // YYYY-MM-DD
+  ergebnis?: string | null; // erreicht | nicht_erreicht | rueckruf | null
+}
+
+/** Bearbeitet einen Verlaufseintrag (Text/Datum/Ergebnis). Status bleibt außen
+ * vor – der Schul-Status wird nur über die Status-Auswahl der Schule gesetzt. */
+export async function updateAnruf(
+  anrufId: string,
+  felder: AnrufUpdateInput,
+): Promise<SimpleResult> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: "Nicht angemeldet." };
+
+  const ac = adminClientOrError();
+  if (!ac.ok) return ac;
+
+  const { data: anruf } = await ac.admin
+    .from("anrufe")
+    .select("schule_id")
+    .eq("id", anrufId)
+    .single();
+  if (!anruf) return { ok: false, error: "Eintrag nicht gefunden." };
+
+  const perm = await darfSchuleBearbeiten(
+    ac.admin,
+    user.id,
+    user.isAdmin,
+    anruf.schule_id as string,
+  );
+  if (!perm.ok) return perm;
+
+  const update: Record<string, unknown> = {};
+  if (felder.text !== undefined) update.text = (felder.text ?? "").trim() || null;
+  if (felder.datum) update.datum = `${felder.datum.slice(0, 10)}T12:00:00`;
+  if (felder.ergebnis !== undefined) {
+    if (felder.ergebnis && !ERGEBNIS_VALUES.includes(felder.ergebnis)) {
+      return { ok: false, error: "Ungültiges Ergebnis." };
+    }
+    update.ergebnis = felder.ergebnis || null;
+  }
+  if (Object.keys(update).length === 0) return { ok: true };
+
+  const { error } = await ac.admin
+    .from("anrufe")
+    .update(update)
+    .eq("id", anrufId);
+  if (error) return { ok: false, error: error.message };
+
+  await recomputeSchuleMarker(ac.admin, anruf.schule_id as string);
+  revalidatePath("/dashboard");
+  revalidatePath(`/schule/${anruf.schule_id}`);
+  return { ok: true };
+}
+
+/** Löscht einen Verlaufseintrag. Admin überall, SL nur für eigene Standorte. */
+export async function deleteAnruf(anrufId: string): Promise<SimpleResult> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: "Nicht angemeldet." };
+
+  const ac = adminClientOrError();
+  if (!ac.ok) return ac;
+
+  const { data: anruf } = await ac.admin
+    .from("anrufe")
+    .select("schule_id")
+    .eq("id", anrufId)
+    .single();
+  if (!anruf) return { ok: false, error: "Eintrag nicht gefunden." };
+
+  const perm = await darfSchuleBearbeiten(
+    ac.admin,
+    user.id,
+    user.isAdmin,
+    anruf.schule_id as string,
+  );
+  if (!perm.ok) return perm;
+
+  const { error } = await ac.admin.from("anrufe").delete().eq("id", anrufId);
+  if (error) return { ok: false, error: error.message };
+
+  await recomputeSchuleMarker(ac.admin, anruf.schule_id as string);
+  revalidatePath("/dashboard");
+  revalidatePath(`/schule/${anruf.schule_id}`);
   return { ok: true };
 }
 

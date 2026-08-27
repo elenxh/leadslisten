@@ -65,19 +65,32 @@ export default async function SchulePage({
   }
 
   const schuleTyped = schule as unknown as SchuleMitLeitung;
-  const canEdit = isAdmin(me) || schuleTyped.zustaendig === me.id;
 
-  // Schulart darf eine Leitung nur ändern, wenn die Schule zu einem ihrer
-  // betreuten Standorte gehört (Admin immer).
-  let canEditSchulart = isAdmin(me);
-  if (!canEditSchulart && schuleTyped.standort_id) {
+  // Bearbeiten darf: Admin (überall) ODER eine Leitung, die den Standort der
+  // Schule betreut (nicht mehr an "zustaendig" gebunden). Damit pflegt eine SL
+  // alle Schulen ihrer Standorte.
+  let standortLeitung = false;
+  if (!isAdmin(me) && schuleTyped.standort_id) {
     const { data: rel } = await supabase
       .from("leitung_standort")
       .select("standort_id")
       .eq("leitung_id", me.id)
       .eq("standort_id", schuleTyped.standort_id)
       .maybeSingle();
-    canEditSchulart = !!rel;
+    standortLeitung = !!rel;
+  }
+  const canEdit = isAdmin(me) || standortLeitung;
+  const canEditSchulart = canEdit;
+
+  // Standort-Name für die (read-only) Anzeige bei Nicht-Admins.
+  let standortName: string | null = null;
+  if (schuleTyped.standort_id) {
+    const { data: st } = await supabase
+      .from("standorte")
+      .select("name")
+      .eq("id", schuleTyped.standort_id)
+      .maybeSingle();
+    standortName = (st?.name as string | undefined) ?? null;
   }
 
   return (
@@ -91,6 +104,7 @@ export default async function SchulePage({
         canEditSchulart={canEditSchulart}
         leitungen={leitungen}
         standorte={standorte}
+        standortName={standortName}
         kontakte={(kontakteData ?? []) as Kontakt[]}
       />
     </>

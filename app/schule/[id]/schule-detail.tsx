@@ -43,17 +43,17 @@ import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/components/app/status-badge";
 import { LeitungAvatar } from "@/components/app/leitung-avatar";
 import { AnrufDialog } from "@/components/app/anruf-dialog";
-import { createClient } from "@/lib/supabase/client";
 import { STATUS_LIST, anrufTypLabel } from "@/lib/status";
 import { SCHULART_OPTIONS } from "@/lib/schulart";
 import {
   deleteSchule,
-  updateKontaktdaten,
+  updateSchuleFelder,
   updateSchulart,
   updateStatus,
 } from "@/app/standorte/actions";
 import { AmpelBadge } from "@/components/app/ampel";
 import { ErgebnisMarker, WiedervorlageMarker } from "@/components/app/anruf-marker";
+import { VerlaufEintragActions } from "@/components/app/verlauf-eintrag-actions";
 import { ergebnisMeta } from "@/lib/anruf";
 import { KontakteSection } from "@/components/app/kontakte-section";
 import { readSchulOrder } from "@/lib/schul-order";
@@ -76,6 +76,7 @@ export function SchuleDetail({
   canEditSchulart,
   leitungen,
   standorte,
+  standortName,
   kontakte,
 }: {
   schule: SchuleMitLeitung;
@@ -85,6 +86,7 @@ export function SchuleDetail({
   canEditSchulart: boolean;
   leitungen: Pick<Leitung, "id" | "name" | "kuerzel" | "farbe">[];
   standorte: Standort[];
+  standortName: string | null;
   kontakte: Kontakt[];
 }) {
   const router = useRouter();
@@ -140,8 +142,11 @@ export function SchuleDetail({
   const [standort, setStandort] = useState(schule.standort_id ?? "");
   const [saving, setSaving] = useState(false);
 
-  // Editierbare Kontakt-/Stammdaten (Berechtigung wie Schulart/Status).
+  // Editierbare Stamm-/Kontaktdaten (Berechtigung: Admin oder Standort-Leitung).
   const [kd, setKd] = useState({
+    name: schule.name ?? "",
+    bezirk: schule.bezirk ?? "",
+    stadt: schule.stadt ?? "",
     ansprechpartner: schule.ansprechpartner ?? "",
     rolle_ap: schule.rolle_ap ?? "",
     tel: schule.tel ?? "",
@@ -151,6 +156,9 @@ export function SchuleDetail({
   });
   const [savingKd, setSavingKd] = useState(false);
   const kdDirty =
+    kd.name !== (schule.name ?? "") ||
+    kd.bezirk !== (schule.bezirk ?? "") ||
+    kd.stadt !== (schule.stadt ?? "") ||
     kd.ansprechpartner !== (schule.ansprechpartner ?? "") ||
     kd.rolle_ap !== (schule.rolle_ap ?? "") ||
     kd.tel !== (schule.tel ?? "") ||
@@ -163,8 +171,15 @@ export function SchuleDetail({
   ) => setKd((p) => ({ ...p, [k]: e.target.value }));
 
   async function saveKontaktdaten() {
+    if (!kd.name.trim()) {
+      toast.error("Name ist erforderlich.");
+      return;
+    }
     setSavingKd(true);
-    const res = await updateKontaktdaten(schule.id, {
+    const res = await updateSchuleFelder(schule.id, {
+      name: kd.name,
+      bezirk: kd.bezirk,
+      stadt: kd.stadt,
       ansprechpartner: kd.ansprechpartner,
       rolle_ap: kd.rolle_ap,
       tel: kd.tel,
@@ -177,7 +192,7 @@ export function SchuleDetail({
       toast.error("Speichern fehlgeschlagen", { description: res.error });
       return;
     }
-    toast.success("Kontaktdaten gespeichert");
+    toast.success("Stammdaten gespeichert");
     router.refresh();
   }
 
@@ -229,31 +244,28 @@ export function SchuleDetail({
   const dirty =
     wv !== (schule.wiedervorlage_am?.slice(0, 10) ?? "") ||
     notiz !== (schule.akquise_notiz ?? "") ||
-    (admin && erstkontakt !== (schule.erstkontakt_am?.slice(0, 10) ?? "")) ||
+    erstkontakt !== (schule.erstkontakt_am?.slice(0, 10) ?? "") ||
     (admin && zustaendig !== (schule.zustaendig ?? "")) ||
     (admin && standort !== (schule.standort_id ?? ""));
 
   async function save() {
     setSaving(true);
-    const supabase = createClient();
-    const update: Record<string, unknown> = {
+    // Schreibt über die Server-Action (Service-Role + Standort-Prüfung).
+    // zustaendig/standort werden nur für Admins übernommen – für SL serverseitig
+    // ignoriert UND per DB-Trigger abgesichert.
+    const felder: Parameters<typeof updateSchuleFelder>[1] = {
       wiedervorlage_am: wv || null,
-      akquise_notiz: notiz.trim() || null,
+      erstkontakt_am: erstkontakt || null,
+      akquise_notiz: notiz,
     };
     if (admin) {
-      update.erstkontakt_am = erstkontakt || null;
-      update.zustaendig = zustaendig || null;
-      update.standort_id = standort || null;
+      felder.zustaendig = zustaendig || null;
+      felder.standort_id = standort || null;
     }
-
-    const { error } = await supabase
-      .from("schulen")
-      .update(update)
-      .eq("id", schule.id);
-
+    const res = await updateSchuleFelder(schule.id, felder);
     setSaving(false);
-    if (error) {
-      toast.error("Speichern fehlgeschlagen", { description: error.message });
+    if (!res.ok) {
+      toast.error("Speichern fehlgeschlagen", { description: res.error });
       return;
     }
     toast.success("Gespeichert");
@@ -348,6 +360,18 @@ export function SchuleDetail({
           {canEditSchulart ? (
             <>
               <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor="kd-name">Name *</Label>
+                  <Input id="kd-name" value={kd.name} onChange={setKdField("name")} required />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="kd-bezirk">Bezirk</Label>
+                  <Input id="kd-bezirk" value={kd.bezirk} onChange={setKdField("bezirk")} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="kd-stadt">Stadt</Label>
+                  <Input id="kd-stadt" value={kd.stadt} onChange={setKdField("stadt")} />
+                </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="kd-ap">Ansprechpartner</Label>
                   <Input id="kd-ap" value={kd.ansprechpartner} onChange={setKdField("ansprechpartner")} />
@@ -373,14 +397,9 @@ export function SchuleDetail({
                   <Input id="kd-adr" value={kd.adresse} onChange={setKdField("adresse")} />
                 </div>
               </div>
-              {(schule.stadt || schule.bezirk) && (
-                <p className="text-xs text-muted-foreground">
-                  Ort: {[schule.stadt, schule.bezirk].filter(Boolean).join(", ")}
-                </p>
-              )}
               <Button onClick={saveKontaktdaten} disabled={!kdDirty || savingKd} size="sm">
                 {savingKd && <Loader2 className="mr-2 size-4 animate-spin" />}
-                Kontaktdaten speichern
+                Stammdaten speichern
               </Button>
             </>
           ) : (
@@ -482,7 +501,7 @@ export function SchuleDetail({
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="erstkontakt">Erstkontakt am</Label>
-              {admin ? (
+              {canEdit ? (
                 <Input
                   id="erstkontakt"
                   type="date"
@@ -544,10 +563,12 @@ export function SchuleDetail({
             )}
           </div>
 
-          {admin && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Zuständige Leitung</Label>
+          {/* Zuständige Leitung + Standort: nur Admin darf ändern; für SL reine
+              Anzeige (zusätzlich per Server-Action + DB-Trigger abgesichert). */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Zuständige Leitung</Label>
+              {admin ? (
                 <Select value={zustaendig || "none"} onValueChange={(v) => setZustaendig(v && v !== "none" ? v : "")}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Nicht zugewiesen">
@@ -568,9 +589,15 @@ export function SchuleDetail({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Standort</Label>
+              ) : (
+                <p className="flex h-9 items-center rounded-md bg-muted/40 px-3 text-sm text-muted-foreground">
+                  {schule.leitung?.name ?? "Nicht zugewiesen"}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>Standort</Label>
+              {admin ? (
                 <Select value={standort || "none"} onValueChange={(v) => setStandort(v && v !== "none" ? v : "")}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Kein Standort">
@@ -591,9 +618,13 @@ export function SchuleDetail({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+              ) : (
+                <p className="flex h-9 items-center rounded-md bg-muted/40 px-3 text-sm text-muted-foreground">
+                  {standortName ?? "Kein Standort"}
+                </p>
+              )}
             </div>
-          )}
+          </div>
 
           <div className="space-y-2">
             <Label htmlFor="notiz">Akquise-Notiz</Label>
@@ -659,6 +690,11 @@ export function SchuleDetail({
                         <span className="text-xs text-muted-foreground">
                           {formatDateTime(a.datum)}
                         </span>
+                        {canEdit && (
+                          <span className="ml-auto">
+                            <VerlaufEintragActions anruf={a} />
+                          </span>
+                        )}
                       </div>
                       {a.text && (
                         <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">
