@@ -523,6 +523,109 @@ export async function updateStatus(
   return { ok: true };
 }
 
+export interface AkquiseInput {
+  status: string;
+  callNotiz: string | null; // Text des Auto-Call-Verlaufseintrags
+  wiedervorlage: string | null; // YYYY-MM-DD
+  erstkontakt: string | null; // YYYY-MM-DD
+  akquiseNotiz: string | null; // Bestand-Notiz
+  zustaendig?: string | null; // nur Admin
+  standort?: string | null; // nur Admin
+}
+export type AkquiseResult =
+  | { ok: true; callErstellt: boolean }
+  | { ok: false; error: string };
+
+/**
+ * Speichert die Akquise-Sektion in EINEM Zug: Status (+ automatischer Call bei
+ * Kontakt-Status, auch unverändert = Bestätigung, Tagessperre max. 1×/Tag),
+ * Wiedervorlage, Erstkontakt, Akquise-Notiz, (Admin) Zuständig/Standort.
+ * Gibt zurück, ob ein Call erfasst wurde (für das Feedback).
+ */
+export async function speichereAkquise(
+  schuleId: string,
+  input: AkquiseInput,
+): Promise<AkquiseResult> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: "Nicht angemeldet." };
+  if (!STATUS_ERLAUBT.includes(input.status)) {
+    return { ok: false, error: "Ungültiger Status." };
+  }
+
+  const ac = adminClientOrError();
+  if (!ac.ok) return ac;
+  const perm = await darfSchuleBearbeiten(ac.admin, user.id, user.isAdmin, schuleId);
+  if (!perm.ok) return perm;
+
+  const { data: schule } = await ac.admin
+    .from("schulen")
+    .select("status, erstkontakt_am")
+    .eq("id", schuleId)
+    .single();
+  const alterStatus = (schule?.status as string | undefined) ?? null;
+  const istKontakt = KONTAKT_STATUS.includes(input.status);
+  const today = todayISO();
+  const norm = (v: string | null) => {
+    const t = (v ?? "").trim();
+    return t.length ? t : null;
+  };
+
+  // Erstkontakt: Feldwert maßgeblich; bei erstem Kontakt-Status automatisch heute.
+  let erst = input.erstkontakt || null;
+  if (!erst && istKontakt && !schule?.erstkontakt_am) erst = today;
+
+  const update: Record<string, unknown> = {
+    status: input.status,
+    wiedervorlage_am: input.wiedervorlage || null,
+    erstkontakt_am: erst,
+    akquise_notiz: norm(input.akquiseNotiz),
+  };
+  if (user.isAdmin) {
+    update.zustaendig = input.zustaendig || null;
+    update.standort_id = input.standort || null;
+  }
+
+  const { error: uErr } = await ac.admin.from("schulen").update(update).eq("id", schuleId);
+  if (uErr) return { ok: false, error: uErr.message };
+
+  // Automatischer Call bei Kontakt-Status – mit Tagessperre.
+  let callErstellt = false;
+  if (istKontakt) {
+    const { data: heute } = await ac.admin
+      .from("anrufe")
+      .select("datum")
+      .eq("schule_id", schuleId)
+      .eq("leitung_id", user.id)
+      .eq("ergebnis", "erreicht");
+    const schonHeute = ((heute ?? []) as { datum: string }[]).some(
+      (r) => (r.datum ?? "").slice(0, 10) === today,
+    );
+    if (!schonHeute) {
+      const cleanNotiz = (input.callNotiz ?? "").trim();
+      const geaendert = alterStatus !== input.status;
+      const text =
+        cleanNotiz ||
+        (geaendert ? `Status geändert auf ${input.status}` : `Status bestätigt: ${input.status}`);
+      const { error: aErr } = await ac.admin.from("anrufe").insert({
+        schule_id: schuleId,
+        leitung_id: user.id,
+        datum: `${today}T12:00:00`,
+        typ: "telefonat",
+        ergebnis: "erreicht",
+        status_neu: null,
+        text,
+      });
+      if (aErr) return { ok: false, error: aErr.message };
+      callErstellt = true;
+    }
+  }
+
+  await recomputeSchuleMarker(ac.admin, schuleId);
+  revalidatePath("/dashboard");
+  revalidatePath(`/schule/${schuleId}`);
+  return { ok: true, callErstellt };
+}
+
 /**
  * Protokolliert einen Vor-Ort-Termin als eigenen Verlaufseintrag
  * (typ='vor_ort', ergebnis=NULL). Zählt im Stundennachweis als Termin
