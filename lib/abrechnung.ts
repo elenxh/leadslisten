@@ -56,6 +56,9 @@ export interface OrgaEintrag {
   minuten: number;
   kategorie: "meeting_teamleitung" | "orga";
   beschreibung: string | null;
+  quelle?: "orga" | "protokoll"; // 'protokoll' = aus 1:1-Gesprächsprotokoll (read-only)
+  refId?: string; // Protokoll-ID (für Link), wenn quelle='protokoll'
+  dauerFehlt?: boolean; // Protokoll ohne Dauer -> zählt 0, Marker anzeigen
 }
 export interface StundenEintrag {
   id: string;

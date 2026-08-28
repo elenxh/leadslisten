@@ -59,6 +59,7 @@ export default async function MonatPage({
     { data: vertragData },
     { data: modelleData },
     { data: tagNotizData },
+    { data: protokollData },
   ] = await Promise.all([
     supabase
       .from("anrufe")
@@ -72,6 +73,7 @@ export default async function MonatPage({
     supabase.from("leitung_vertrag").select("vertragsmodell_id, gilt_ab").eq("leitung_id", targetId),
     supabase.from("vertragsmodelle").select("*").order("name"),
     supabase.from("tag_notizen").select("datum, notiz").eq("leitung_id", targetId).gte("datum", rangeStart).lte("datum", rangeEnd),
+    supabase.from("gespraechsprotokolle").select("id, datum, thema, dauer_minuten").eq("leitung_id", targetId).gte("datum", rangeStart).lte("datum", rangeEnd),
   ]);
 
   // Admin-Kommentare NUR für Admin laden (RLS blockt SL ohnehin).
@@ -105,9 +107,23 @@ export default async function MonatPage({
     .map((a) => ({ id: a.id, datumISO: a.datum.slice(0, 10), schuleName: a.schule?.name ?? null, notiz: a.text }));
 
   type OrgaRow = { id: string; datum: string; dauer_minuten: number; kategorie: "meeting_teamleitung" | "orga"; beschreibung: string | null };
-  const orga: OrgaEintrag[] = ((orgaData ?? []) as OrgaRow[]).map((o) => ({
-    id: o.id, datumISO: o.datum.slice(0, 10), minuten: o.dauer_minuten, kategorie: o.kategorie, beschreibung: o.beschreibung,
+  const orgaEcht: OrgaEintrag[] = ((orgaData ?? []) as OrgaRow[]).map((o) => ({
+    id: o.id, datumISO: o.datum.slice(0, 10), minuten: o.dauer_minuten, kategorie: o.kategorie, beschreibung: o.beschreibung, quelle: "orga",
   }));
+
+  // 1:1-Gesprächsprotokolle als Meeting-Zeit (read-only). Ohne Dauer -> 0 Min + Marker.
+  type ProtokollRow = { id: string; datum: string; thema: string | null; dauer_minuten: number | null };
+  const protokollMeetings: OrgaEintrag[] = ((protokollData ?? []) as ProtokollRow[]).map((p) => ({
+    id: `p:${p.id}`,
+    datumISO: p.datum.slice(0, 10),
+    minuten: p.dauer_minuten ?? 0,
+    kategorie: "meeting_teamleitung",
+    beschreibung: p.thema,
+    quelle: "protokoll",
+    refId: p.id,
+    dauerFehlt: p.dauer_minuten == null,
+  }));
+  const orga: OrgaEintrag[] = [...orgaEcht, ...protokollMeetings];
 
   type StundenRow = { id: string; datum: string; minuten: number; notiz: string | null };
   const stunden: StundenEintrag[] = ((stundenData ?? []) as StundenRow[]).map((s) => ({

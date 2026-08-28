@@ -139,12 +139,14 @@ interface FormState {
   schritte: ProtokollSchritt[];
   wiedervorlage_am: string;
   ampel: ProtokollAmpel | null;
+  dauer: string;
 }
 
 function initialState(p?: Gespraechsprotokoll): FormState {
   return {
     datum: p?.datum?.slice(0, 10) ?? todayISO(),
     uhrzeit: p?.uhrzeit ?? "",
+    dauer: p?.dauer_minuten != null ? String(p.dauer_minuten) : "",
     thema: p?.thema ?? "",
     inhalt: p?.inhalt ?? "",
     ergebnis: p?.ergebnis ?? "",
@@ -204,6 +206,7 @@ function ProtokollCard({
       schritte: form.schritte,
       wiedervorlage_am: form.wiedervorlage_am,
       ampel: form.ampel,
+      dauer_minuten: form.dauer ? Number(form.dauer) : null,
     };
     start(async () => {
       const res = isNew
@@ -287,6 +290,20 @@ function ProtokollCard({
                 onChange={(e) => set("uhrzeit", e.target.value)}
                 data-testid="f-uhrzeit"
               />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Dauer (Min.) *</Label>
+              <Input
+                type="number"
+                min={1}
+                value={form.dauer}
+                onChange={(e) => set("dauer", e.target.value)}
+                placeholder="z. B. 30"
+                data-testid="f-dauer"
+              />
+              <p className="text-xs text-muted-foreground">
+                Zählt als Meeting-Zeit im Stundennachweis. Pflicht.
+              </p>
             </div>
           </div>
 
@@ -426,7 +443,11 @@ function ProtokollCard({
             <div className="flex items-center gap-2">
               <Button
                 onClick={save}
-                disabled={pending || (!isNew && !dirty)}
+                disabled={
+                  pending ||
+                  (!isNew && !dirty) ||
+                  (isNew && !(Number(form.dauer) > 0))
+                }
                 size="sm"
                 data-testid="protokoll-save"
               >
