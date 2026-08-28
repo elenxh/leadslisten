@@ -37,14 +37,12 @@
 
 begin;
 
--- 0a) Backup-Spalte (idempotent).
+-- 0) Backup-Spalte (idempotent). Einzige DDL hier – auf schulen (RLS aktiv).
+--    anrufe wird NICHT angelegt/verändert, nur unten befüllt (INSERT). Die
+--    Alt-Import-Spalten leitung_id + status_neu sind bereits durch 0010/0011
+--    nullable; deshalb hier kein weiteres "alter table public.anrufe" nötig.
 alter table public.schulen
   add column if not exists notiz_original_backup text;
-
--- 0b) Alt-Import zulassen (idempotent; steht auch in 0010/0011): kein Urheber,
---     kein Status. leitung_id + status_neu müssen NULL erlauben.
-alter table public.anrufe alter column leitung_id drop not null;
-alter table public.anrufe alter column status_neu drop not null;
 
 -- 1) Komplettes Backup von notiz_original (nur einmal – re-run-sicher).
 update public.schulen
