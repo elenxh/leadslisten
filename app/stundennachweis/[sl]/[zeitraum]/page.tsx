@@ -60,6 +60,7 @@ export default async function MonatPage({
     { data: modelleData },
     { data: tagNotizData },
     { data: protokollData },
+    { data: slMeetingData },
   ] = await Promise.all([
     supabase
       .from("anrufe")
@@ -74,6 +75,7 @@ export default async function MonatPage({
     supabase.from("vertragsmodelle").select("*").order("name"),
     supabase.from("tag_notizen").select("datum, notiz").eq("leitung_id", targetId).gte("datum", rangeStart).lte("datum", rangeEnd),
     supabase.from("gespraechsprotokolle").select("id, datum, thema, dauer_minuten").eq("leitung_id", targetId).gte("datum", rangeStart).lte("datum", rangeEnd),
+    supabase.from("sl_meetings").select("id, datum, uhrzeit, dauer_minuten, titel, sl_meeting_teilnehmer!inner(leitung_id)").eq("sl_meeting_teilnehmer.leitung_id", targetId).gte("datum", rangeStart).lte("datum", rangeEnd),
   ]);
 
   // Admin-Kommentare NUR für Admin laden (RLS blockt SL ohnehin).
@@ -123,7 +125,18 @@ export default async function MonatPage({
     refId: p.id,
     dauerFehlt: p.dauer_minuten == null,
   }));
-  const orga: OrgaEintrag[] = [...orgaEcht, ...protokollMeetings];
+  // SL-Meetings (vom Admin angelegt) als Meeting-Zeit, read-only, eigene Kennung.
+  type SLMeetingRow = { id: string; datum: string; uhrzeit: string | null; dauer_minuten: number; titel: string };
+  const slMeetings: OrgaEintrag[] = ((slMeetingData ?? []) as unknown as SLMeetingRow[]).map((m) => ({
+    id: `slm:${m.id}`,
+    datumISO: m.datum.slice(0, 10),
+    minuten: m.dauer_minuten,
+    kategorie: "sl_meeting",
+    beschreibung: m.uhrzeit ? `${m.titel} · ${m.uhrzeit}` : m.titel,
+    quelle: "sl_meeting",
+  }));
+
+  const orga: OrgaEintrag[] = [...orgaEcht, ...protokollMeetings, ...slMeetings];
 
   type StundenRow = { id: string; datum: string; minuten: number; notiz: string | null };
   const stunden: StundenEintrag[] = ((stundenData ?? []) as StundenRow[]).map((s) => ({

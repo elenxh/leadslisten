@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ClipboardList, Clock, FileUp, LogOut, ShieldCheck, Upload, Users, Wallet } from "lucide-react";
+import { CalendarDays, ClipboardList, Clock, FileUp, LogOut, ShieldCheck, Upload, Users, Wallet } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -54,6 +54,12 @@ export function AppHeader({ leitung }: { leitung: Leitung }) {
             <Button variant="ghost" size="sm" render={<Link href="/admin/vertragsmodelle" />}>
               <Wallet className="size-4 sm:mr-1.5" />
               <span className="hidden sm:inline">Verträge</span>
+            </Button>
+          )}
+          {leitung.rolle === "admin" && (
+            <Button variant="ghost" size="sm" render={<Link href="/admin/sl-meetings" />}>
+              <CalendarDays className="size-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">SL-Meetings</span>
             </Button>
           )}
           {leitung.rolle === "admin" && (

@@ -52,6 +52,7 @@ import {
 const KAT_LABEL: Record<string, string> = {
   meeting_teamleitung: "Meeting mit Teamleitung",
   orga: "Orga",
+  sl_meeting: "SL-Meeting",
 };
 const FARBE_CLASS: Record<string, string> = {
   rot: "bg-red-500",
@@ -262,7 +263,12 @@ function TagZeile({
           </p>
         ))}
         {t.orga.map((o) =>
-          o.quelle === "protokoll" ? (
+          o.quelle === "sl_meeting" ? (
+            <p key={o.id} className="truncate">
+              <span className="text-indigo-600 dark:text-indigo-400">◇ SL-Meeting</span> {o.minuten} min
+              {o.beschreibung ? <span className="text-muted-foreground"> · {o.beschreibung}</span> : null}
+            </p>
+          ) : o.quelle === "protokoll" ? (
             <p key={o.id} className="flex items-center justify-between gap-2">
               <span className="truncate">
                 <span className="text-purple-600 dark:text-purple-400">■ Meeting</span>{" "}
