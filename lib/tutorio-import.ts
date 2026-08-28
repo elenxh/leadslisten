@@ -28,6 +28,7 @@ export interface ParsedTutorio {
   rows: TutorioRow[];
   sheets: TutorioSheetInfo[];
   errors: string[]; // Validierungsfehler mit Reiter-/Zeilenbezug
+  beispielzeilen: { sheet: string; name: string }[]; // übersprungene Beispielzeilen
 }
 
 // Normalisiert Header-/Sheet-Text: klein, ohne Umlaute, Whitespace zusammen.
@@ -163,6 +164,7 @@ export function parseTutorioWorkbook(buf: ArrayBuffer): ParsedTutorio {
   const rows: TutorioRow[] = [];
   const sheets: TutorioSheetInfo[] = [];
   const errors: string[] = [];
+  const beispielzeilen: { sheet: string; name: string }[] = [];
 
   for (const sheetName of wb.SheetNames) {
     const cls = classifySheet(sheetName);
@@ -218,9 +220,9 @@ export function parseTutorioWorkbook(buf: ArrayBuffer): ParsedTutorio {
       if (!anyValue) continue;
 
       // Stehengelassene Beispielzeile der Vorlage überspringen (kein Fehler,
-      // keine Daten). Sonst würde z. B. der Träger-Beispieleintrag ohne Schulart
-      // den Import sprengen.
+      // keine Daten) – aber MELDEN, damit die Vorschau sie mit Grund anzeigt.
       if (istBeispielZeile([vals.name, vals.ansprechpartner, vals.mail, vals.homepage])) {
+        beispielzeilen.push({ sheet: sheetName, name: vals.name ?? "(ohne Namen)" });
         continue;
       }
 
@@ -257,7 +259,7 @@ export function parseTutorioWorkbook(buf: ArrayBuffer): ParsedTutorio {
     sheets.push({ sheet: sheetName, typ, count });
   }
 
-  return { rows, sheets, errors };
+  return { rows, sheets, errors, beispielzeilen };
 }
 
 // Duplikat-Schlüssel: Name case-insensitiv, ohne Rand-Leerzeichen, Whitespace

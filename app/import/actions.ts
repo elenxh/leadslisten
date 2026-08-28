@@ -8,12 +8,32 @@ import {
   parseTutorioWorkbook,
   normalizeName,
   tutorioInsertData,
+  TRAEGER_SCHULART,
+  type TutorioRow,
 } from "@/lib/tutorio-import";
+
+export interface PreviewRow {
+  sheet: string;
+  typ: "schule" | "traeger";
+  name: string;
+  schulart: string;
+  ansprechpartner: string | null;
+}
 
 export interface SkippedInfo {
   name: string;
   sheet: string;
+  grund: "duplikat" | "beispielzeile";
 }
+
+export type TutorioPreviewResult =
+  | {
+      ok: true;
+      standortName: string;
+      create: PreviewRow[];
+      skipped: SkippedInfo[];
+    }
+  | { ok: false; error?: string; errors?: string[] };
 
 export type TutorioImportResult =
   | {
@@ -40,9 +60,24 @@ async function currentUser() {
   return { id: user.id, isAdmin: me.rolle === "admin" };
 }
 
-export async function importTutorio(
-  formData: FormData,
-): Promise<TutorioImportResult> {
+// Gemeinsame Vorbereitung für Vorschau UND Import: Auth, Standort-Recht,
+// Parsen, Validieren, Duplikat-Check. SCHREIBT NICHT. Beide Wege laufen durch
+// dieselbe Prüfung -> die Bestätigung vertraut nicht der Vorschau, sondern
+// prüft (inkl. Duplikaten) frisch gegen die DB.
+type Prepared =
+  | { ok: false; error?: string; errors?: string[] }
+  | {
+      ok: true;
+      admin: ReturnType<typeof createAdminClient>;
+      standortId: string;
+      standortName: string;
+      toInsert: Record<string, unknown>[];
+      insertSheets: string[];
+      preview: PreviewRow[];
+      skipped: SkippedInfo[];
+    };
+
+async function prepareImport(formData: FormData): Promise<Prepared> {
   const user = await currentUser();
   if (!user) return { ok: false, error: "Nicht angemeldet." };
 
@@ -64,16 +99,16 @@ export async function importTutorio(
     return { ok: false, error: (e as Error).message };
   }
 
-  // --- Berechtigung serverseitig: Standort muss aktiv sein, und (Admin ODER
-  //     SL mit Zuordnung zu genau diesem Standort). Nicht nur UI. ---
+  // --- Berechtigung: Standort aktiv, und Admin ODER SL mit Zuordnung. ---
   const { data: standort } = await admin
     .from("standorte")
-    .select("id, status")
+    .select("id, name, status")
     .eq("id", standortId)
     .maybeSingle();
   if (!standort || (standort as { status: string }).status !== "aktiv") {
     return { ok: false, error: "Ungültiger oder inaktiver Standort." };
   }
+  const standortName = (standort as { name: string }).name;
   if (!user.isAdmin) {
     const { data: rel } = await admin
       .from("leitung_standort")
@@ -82,33 +117,22 @@ export async function importTutorio(
       .eq("standort_id", standortId)
       .maybeSingle();
     if (!rel) {
-      return {
-        ok: false,
-        error: "Keine Berechtigung für diesen Standort.",
-      };
+      return { ok: false, error: "Keine Berechtigung für diesen Standort." };
     }
   }
 
-  // --- Parsen + Validieren (alles VOR jedem Schreiben). ---
+  // --- Parsen + Validieren. ---
   let parsed;
   try {
     parsed = parseTutorioWorkbook(await file.arrayBuffer());
   } catch (e) {
     return { ok: false, error: `Datei konnte nicht gelesen werden: ${(e as Error).message}` };
   }
-
   if (parsed.errors.length > 0) {
-    // Alles-oder-nichts: bei Validierungsfehlern nichts importieren.
     return { ok: false, errors: parsed.errors };
   }
-  if (parsed.rows.length === 0) {
-    return {
-      ok: false,
-      error: "Keine Daten in den Reitern gefunden (Schulen, Soziale Träger).",
-    };
-  }
 
-  // --- Duplikate (Name am gewählten Standort, case-insensitiv, getrimmt). ---
+  // --- Duplikate: Name am gewählten Standort (case-insensitiv, getrimmt). ---
   const existing = new Set<string>();
   const LOAD_PAGE = 1000;
   for (let page = 0; page < 200; page++) {
@@ -126,22 +150,80 @@ export async function importTutorio(
   }
 
   const toInsert: Record<string, unknown>[] = [];
-  const insertSheets: string[] = []; // parallel zu toInsert, für Reiter-Zählung
+  const insertSheets: string[] = [];
+  const preview: PreviewRow[] = [];
   const skipped: SkippedInfo[] = [];
   const seen = new Set<string>();
+
+  // Übersprungene Beispielzeilen (aus dem Parser) mit Grund melden.
+  for (const b of parsed.beispielzeilen) {
+    skipped.push({ name: b.name, sheet: b.sheet, grund: "beispielzeile" });
+  }
+
+  const anzeigeSchulart = (row: TutorioRow) =>
+    row.typ === "traeger" ? TRAEGER_SCHULART : row.schulart ?? "";
 
   for (const row of parsed.rows) {
     const key = normalizeName(row.name);
     if (existing.has(key) || seen.has(key)) {
-      skipped.push({ name: row.name.trim(), sheet: row.sheet });
+      skipped.push({ name: row.name.trim(), sheet: row.sheet, grund: "duplikat" });
       continue;
     }
     seen.add(key);
     toInsert.push(tutorioInsertData(row, standortId));
     insertSheets.push(row.sheet);
+    preview.push({
+      sheet: row.sheet,
+      typ: row.typ,
+      name: row.name.trim(),
+      schulart: anzeigeSchulart(row),
+      ansprechpartner: row.ansprechpartner,
+    });
   }
 
-  // --- Einfügen (Batches). Status 'Neu', kein Verlauf, keine Alt-Markierung. ---
+  return {
+    ok: true,
+    admin,
+    standortId,
+    standortName,
+    toInsert,
+    insertSheets,
+    preview,
+    skipped,
+  };
+}
+
+// SCHRITT 1: Vorschau – parst, validiert, prüft Duplikate, schreibt NICHTS.
+export async function previewTutorio(
+  formData: FormData,
+): Promise<TutorioPreviewResult> {
+  const prep = await prepareImport(formData);
+  if (!prep.ok) return prep;
+  return {
+    ok: true,
+    standortName: prep.standortName,
+    create: prep.preview,
+    skipped: prep.skipped,
+  };
+}
+
+// SCHRITT 2: Bestätigen – prüft ALLES erneut (inkl. Duplikate frisch gegen die
+// DB) und schreibt erst dann.
+export async function importTutorio(
+  formData: FormData,
+): Promise<TutorioImportResult> {
+  const prep = await prepareImport(formData);
+  if (!prep.ok) return prep;
+
+  const { admin, toInsert, insertSheets, skipped } = prep;
+
+  if (toInsert.length === 0) {
+    return {
+      ok: false,
+      error: "Keine importierbaren Zeilen (alles Duplikate/Beispielzeilen).",
+    };
+  }
+
   const createdCounts: Record<string, number> = {};
   let done = 0;
   for (let i = 0; i < toInsert.length; i += 500) {
