@@ -53,6 +53,7 @@ export interface Schule {
   mail: string | null;
   tel: string | null;
   notiz_original: string | null;
+  notiz_original_backup: string | null; // Sicherheitskopie vor der 0013-Migration
   status: SchulStatus;
   naechster_anruf: string | null; // ISO date – Altfeld, ersetzt durch wiedervorlage_am
   erstkontakt_am: string | null; // ISO date – fix, einmal gesetzt
