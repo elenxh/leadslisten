@@ -4,7 +4,9 @@ import { AppHeader } from "@/components/app/app-header";
 import { isAdmin, requireLeitung } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import {
+  addDaysISO,
   auswerten,
+  monatName,
   wochenImZeitraum,
   zeitraumFuer,
   type Vertragsmodell,
@@ -83,6 +85,39 @@ export default async function MonatPage({
     notiz: t.notiz,
   }));
 
+  // Wiedervorlagen als Kalender-Marker (Protokoll- + Schul-Wiedervorlagen).
+  // Zusätzliche Daten, nicht Teil des Monatsinhalts — deshalb hier separat.
+  const wiedervorlagen = new Set<string>();
+  {
+    const [{ data: protoWv }, { data: lsWv }] = await Promise.all([
+      supabase
+        .from("gespraechsprotokolle")
+        .select("wiedervorlage_am")
+        .eq("leitung_id", targetId)
+        .gte("wiedervorlage_am", rangeStart)
+        .lte("wiedervorlage_am", rangeEnd),
+      supabase.from("leitung_standort").select("standort_id").eq("leitung_id", targetId),
+    ]);
+    for (const r of (protoWv ?? []) as { wiedervorlage_am: string | null }[]) {
+      if (r.wiedervorlage_am) wiedervorlagen.add(r.wiedervorlage_am.slice(0, 10));
+    }
+    const standortIds = ((lsWv ?? []) as { standort_id: string }[]).map((r) => r.standort_id);
+    if (standortIds.length) {
+      const { data: schulWv } = await supabase
+        .from("schulen")
+        .select("wiedervorlage_am")
+        .in("standort_id", standortIds)
+        .gte("wiedervorlage_am", rangeStart)
+        .lte("wiedervorlage_am", rangeEnd);
+      for (const r of (schulWv ?? []) as { wiedervorlage_am: string | null }[]) {
+        if (r.wiedervorlage_am) wiedervorlagen.add(r.wiedervorlage_am.slice(0, 10));
+      }
+    }
+  }
+
+  const prevKey = zeitraumFuer(addDaysISO(zeitraum.startISO, -1)).key;
+  const nextKey = zeitraumFuer(addDaysISO(zeitraum.endISO, 1)).key;
+
   return (
     <>
       <AppHeader leitung={me} />
@@ -90,8 +125,12 @@ export default async function MonatPage({
         istAdmin={admin}
         slId={targetId}
         slName={(sl as { name: string }).name}
+        monatTitel={monatName(zeitraum)}
         zeitraumStart={zeitraum.startISO}
         zeitraumLabel={zeitraum.label}
+        prevKey={prevKey}
+        nextKey={nextKey}
+        wiedervorlagen={Array.from(wiedervorlagen)}
         auswertung={auswertung}
         tagNotizen={tagNotizen}
         adminKommentare={adminKommentare.map((k) => ({
