@@ -45,7 +45,6 @@ import {
   deleteOrgaZeit,
   setAdminKommentar,
   setTagNotiz,
-  setzeMehrarbeitBestaetigung,
   updateArbeitsstunde,
   updateOrgaZeit,
 } from "@/app/stundennachweis/actions";
@@ -73,7 +72,6 @@ export function MonatClient({
   zeitraumStart,
   zeitraumLabel,
   auswertung,
-  bestaetigtWochen,
   tagNotizen,
   adminKommentare,
 }: {
@@ -83,11 +81,9 @@ export function MonatClient({
   zeitraumStart: string;
   zeitraumLabel: string;
   auswertung: Auswertung;
-  bestaetigtWochen: string[];
   tagNotizen: { datum: string; notiz: string | null }[];
   adminKommentare: KommentarInfo[];
 }) {
-  const bestaetigt = new Set(bestaetigtWochen);
   const notizMap = new Map(tagNotizen.map((t) => [t.datum, t.notiz]));
   const kommentarMap = new Map(
     adminKommentare.filter((k) => k.datum).map((k) => [k.datum as string, k]),
@@ -132,7 +128,6 @@ export function MonatClient({
             istAdmin={istAdmin}
             slId={slId}
             zeitraumStart={zeitraumStart}
-            bestaetigt={bestaetigt.has(w.woche.key)}
             notizMap={notizMap}
             kommentarMap={kommentarMap}
           />
@@ -176,7 +171,6 @@ function WochenBlock({
   istAdmin,
   slId,
   zeitraumStart,
-  bestaetigt,
   notizMap,
   kommentarMap,
 }: {
@@ -184,22 +178,11 @@ function WochenBlock({
   istAdmin: boolean;
   slId: string;
   zeitraumStart: string;
-  bestaetigt: boolean;
   notizMap: Map<string, string | null>;
   kommentarMap: Map<string, KommentarInfo>;
 }) {
   const [open, setOpen] = useState(true);
-  const router = useRouter();
-  const [pending, start] = useTransition();
   const hatMehrarbeit = w.mehrarbeitCalls > 0;
-
-  function toggleBestaetigt() {
-    start(async () => {
-      const res = await setzeMehrarbeitBestaetigung({ leitungId: slId, wocheStart: w.woche.key, bestaetigt: !bestaetigt });
-      if (!res.ok) { toast.error("Fehlgeschlagen", { description: res.error }); return; }
-      router.refresh();
-    });
-  }
 
   return (
     <Card data-testid="wochen-block">
@@ -213,8 +196,8 @@ function WochenBlock({
           </span>
         </span>
         {hatMehrarbeit && (
-          <span className={cn("rounded-md px-2 py-0.5 text-xs font-medium", bestaetigt ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" : "bg-amber-500/20 text-amber-800 dark:text-amber-200")} data-testid="mehrarbeit-badge">
-            Mehrarbeit {rundeCalls(w.mehrarbeitCalls)} · {bestaetigt ? "bestätigt" : "offen"}
+          <span className="rounded-md bg-amber-500/20 px-2 py-0.5 text-xs font-medium text-amber-800 dark:text-amber-200" data-testid="mehrarbeit-badge">
+            Mehrarbeit {rundeCalls(w.mehrarbeitCalls)}
           </span>
         )}
         <ChevronDown className={cn("size-4 text-muted-foreground transition-transform", open && "rotate-180")} />
@@ -222,14 +205,6 @@ function WochenBlock({
 
       {open && (
         <CardContent className="border-t p-0">
-          {hatMehrarbeit && istAdmin && (
-            <div className="px-4 pt-3">
-              <Button size="sm" variant="outline" onClick={toggleBestaetigt} disabled={pending}>
-                {pending && <Loader2 className="mr-2 size-4 animate-spin" />}
-                {bestaetigt ? "Bestätigung zurücknehmen" : "Mehrarbeit bestätigen"}
-              </Button>
-            </div>
-          )}
           <div className="divide-y">
             {w.tage.map((t) => (
               <TagZeile

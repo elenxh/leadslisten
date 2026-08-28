@@ -190,14 +190,6 @@ export interface AdminKommentar {
   updated_at: string;
 }
 
-export interface MehrarbeitBestaetigung {
-  id: string;
-  leitung_id: string;
-  woche_start: string; // ISO date (Montag)
-  bestaetigt_von: string | null;
-  bestaetigt_am: string;
-}
-
 // A school joined with its responsible Leitung (for list/detail views).
 export type SchuleMitLeitung = Schule & {
   leitung: Pick<Leitung, "id" | "name" | "kuerzel" | "farbe"> | null;

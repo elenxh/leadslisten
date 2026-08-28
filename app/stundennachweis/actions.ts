@@ -411,39 +411,3 @@ export async function setAdminKommentar(input: {
   revalidatePath("/stundennachweis");
   return { ok: true };
 }
-
-// ===================== Mehrarbeit-Bestätigung (nur Admin) ==============
-export async function setzeMehrarbeitBestaetigung(input: {
-  leitungId: string;
-  wocheStart: string; // YYYY-MM-DD (Montag)
-  bestaetigt: boolean;
-}): Promise<SimpleResult> {
-  const user = await currentUser();
-  if (!user) return { ok: false, error: "Nicht angemeldet." };
-  if (!user.isAdmin) return { ok: false, error: "Keine Berechtigung." };
-  const woche = (input.wocheStart || "").slice(0, 10);
-  if (!woche) return { ok: false, error: "Woche fehlt." };
-  const ac = adminClientOrError();
-  if (!ac.ok) return ac;
-  if (input.bestaetigt) {
-    const { error } = await ac.admin.from("mehrarbeit_bestaetigung").upsert(
-      {
-        leitung_id: input.leitungId,
-        woche_start: woche,
-        bestaetigt_von: user.id,
-        bestaetigt_am: new Date().toISOString(),
-      },
-      { onConflict: "leitung_id,woche_start" },
-    );
-    if (error) return { ok: false, error: error.message };
-  } else {
-    const { error } = await ac.admin
-      .from("mehrarbeit_bestaetigung")
-      .delete()
-      .eq("leitung_id", input.leitungId)
-      .eq("woche_start", woche);
-    if (error) return { ok: false, error: error.message };
-  }
-  revalidatePath("/stundennachweis");
-  return { ok: true };
-}
