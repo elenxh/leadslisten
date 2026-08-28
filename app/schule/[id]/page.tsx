@@ -82,17 +82,6 @@ export default async function SchulePage({
   const canEdit = isAdmin(me) || standortLeitung;
   const canEditSchulart = canEdit;
 
-  // Standort-Name für die (read-only) Anzeige bei Nicht-Admins.
-  let standortName: string | null = null;
-  if (schuleTyped.standort_id) {
-    const { data: st } = await supabase
-      .from("standorte")
-      .select("name")
-      .eq("id", schuleTyped.standort_id)
-      .maybeSingle();
-    standortName = (st?.name as string | undefined) ?? null;
-  }
-
   return (
     <>
       <AppHeader leitung={me} />
@@ -106,7 +95,6 @@ export default async function SchulePage({
         canEditSchulart={canEditSchulart}
         leitungen={leitungen}
         standorte={standorte}
-        standortName={standortName}
         kontakte={(kontakteData ?? []) as Kontakt[]}
       />
     </>

@@ -5,9 +5,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Clock3,
   ExternalLink,
+  GraduationCap,
   Loader2,
   Lock,
   Mail,
@@ -48,9 +51,9 @@ import { STATUS_LIST, anrufTypLabel } from "@/lib/status";
 import { SCHULART_OPTIONS } from "@/lib/schulart";
 import {
   deleteSchule,
+  speichereAkquise,
   updateSchuleFelder,
   updateSchulart,
-  updateStatus,
 } from "@/app/standorte/actions";
 import { AmpelBadge } from "@/components/app/ampel";
 import { ErgebnisMarker, WiedervorlageMarker } from "@/components/app/anruf-marker";
@@ -59,7 +62,8 @@ import { ergebnisMeta } from "@/lib/anruf";
 import { KontakteSection } from "@/components/app/kontakte-section";
 import { readSchulOrder } from "@/lib/schul-order";
 import { ringLabel } from "@/lib/berlin-ring";
-import { formatDate, formatDateTime } from "@/lib/dates";
+import { formatDate, formatDateTime, plusTageISO } from "@/lib/dates";
+import { cn } from "@/lib/utils";
 import type {
   AnrufMitLeitung,
   Kontakt,
@@ -77,7 +81,6 @@ export function SchuleDetail({
   canEditSchulart,
   leitungen,
   standorte,
-  standortName,
   kontakte,
 }: {
   schule: SchuleMitLeitung;
@@ -87,7 +90,6 @@ export function SchuleDetail({
   canEditSchulart: boolean;
   leitungen: Pick<Leitung, "id" | "name" | "kuerzel" | "farbe">[];
   standorte: Standort[];
-  standortName: string | null;
   kontakte: Kontakt[];
 }) {
   const router = useRouter();
@@ -130,9 +132,9 @@ export function SchuleDetail({
     });
   }, [schule.id]);
 
-  // Status: sofortiges Speichern via Server-Action (Standort-Berechtigung).
+  // Status wird beim gemeinsamen "Änderungen speichern" übernommen (nicht sofort).
   const [statusVal, setStatusVal] = useState<SchulStatus>(schule.status);
-  const [savingStatus, startStatus] = useTransition();
+  const [callNotiz, setCallNotiz] = useState("");
 
   const [wv, setWv] = useState(schule.wiedervorlage_am?.slice(0, 10) ?? "");
   const [erstkontakt, setErstkontakt] = useState(
@@ -141,7 +143,8 @@ export function SchuleDetail({
   const [notiz, setNotiz] = useState(schule.akquise_notiz ?? "");
   const [zustaendig, setZustaendig] = useState(schule.zustaendig ?? "");
   const [standort, setStandort] = useState(schule.standort_id ?? "");
-  const [saving, setSaving] = useState(false);
+  const [zuordnungOffen, setZuordnungOffen] = useState(false);
+  const [saving, startSave] = useTransition();
 
   // Editierbare Stamm-/Kontaktdaten (Berechtigung: Admin oder Standort-Leitung).
   const [kd, setKd] = useState({
@@ -215,26 +218,6 @@ export function SchuleDetail({
     router.refresh();
   }
 
-  // Optionale Notiz beim Status setzen/bestätigen (Punkt 2/3). Ein Kontakt-
-  // Status erzeugt serverseitig automatisch einen erfolgreichen Call.
-  const [statusNotiz, setStatusNotiz] = useState("");
-
-  function speichereStatus() {
-    startStatus(async () => {
-      const res = await updateStatus(schule.id, statusVal, statusNotiz.trim() || null);
-      if (!res.ok) {
-        toast.error("Status konnte nicht gespeichert werden", {
-          description: res.error,
-        });
-        return;
-      }
-      setStatusNotiz("");
-      toast.success(
-        statusVal === schule.status ? "Status bestätigt" : "Status aktualisiert",
-      );
-      router.refresh();
-    });
-  }
 
   // Schulart wird sofort bei Auswahl gespeichert (eigene Server-Action).
   const [schulartVal, setSchulartVal] = useState(schule.schulart ?? "");
@@ -264,35 +247,28 @@ export function SchuleDetail({
     router.refresh();
   }
 
-  const dirty =
-    wv !== (schule.wiedervorlage_am?.slice(0, 10) ?? "") ||
-    notiz !== (schule.akquise_notiz ?? "") ||
-    erstkontakt !== (schule.erstkontakt_am?.slice(0, 10) ?? "") ||
-    (admin && zustaendig !== (schule.zustaendig ?? "")) ||
-    (admin && standort !== (schule.standort_id ?? ""));
-
-  async function save() {
-    setSaving(true);
-    // Schreibt über die Server-Action (Service-Role + Standort-Prüfung).
-    // zustaendig/standort werden nur für Admins übernommen – für SL serverseitig
-    // ignoriert UND per DB-Trigger abgesichert.
-    const felder: Parameters<typeof updateSchuleFelder>[1] = {
-      wiedervorlage_am: wv || null,
-      erstkontakt_am: erstkontakt || null,
-      akquise_notiz: notiz,
-    };
-    if (admin) {
-      felder.zustaendig = zustaendig || null;
-      felder.standort_id = standort || null;
-    }
-    const res = await updateSchuleFelder(schule.id, felder);
-    setSaving(false);
-    if (!res.ok) {
-      toast.error("Speichern fehlgeschlagen", { description: res.error });
-      return;
-    }
-    toast.success("Gespeichert");
-    router.refresh();
+  // EIN Button speichert alles: Status (+ Auto-Call bei Kontakt-Status, auch
+  // unverändert = Bestätigung), Wiedervorlage, Erstkontakt, Akquise-Notiz und
+  // (nur Admin) Zuständig/Standort. Die große Notiz wird zum Call-Text.
+  function save() {
+    startSave(async () => {
+      const res = await speichereAkquise(schule.id, {
+        status: statusVal,
+        callNotiz: callNotiz.trim() || null,
+        wiedervorlage: wv || null,
+        erstkontakt: erstkontakt || null,
+        akquiseNotiz: notiz,
+        zustaendig: admin ? zustaendig || null : undefined,
+        standort: admin ? standort || null : undefined,
+      });
+      if (!res.ok) {
+        toast.error("Speichern fehlgeschlagen", { description: res.error });
+        return;
+      }
+      if (res.callErstellt) setCallNotiz("");
+      toast.success(res.callErstellt ? "Gespeichert · Call erfasst" : "Gespeichert");
+      router.refresh();
+    });
   }
 
   return (
@@ -511,207 +487,173 @@ export function SchuleDetail({
             </span>
           )}
         </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Status – sofort speichern; nur Filter-Info, keine Farbe.
-              Editierbar für Admin + zuständige Standort-Leitung. */}
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              Status
-              {savingStatus && (
-                <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
-              )}
-            </Label>
-            {canEditSchulart ? (
+        <CardContent className="space-y-5">
+          {canEditSchulart ? (
+            <>
+              {/* a) Status – wird erst beim Speichern übernommen. */}
               <div className="space-y-2">
+                <Label>Status</Label>
                 <Select
                   value={statusVal}
                   onValueChange={(v) => setStatusVal(v as SchulStatus)}
-                  disabled={savingStatus}
                 >
                   <SelectTrigger className="w-full sm:max-w-xs" data-testid="status-select">
                     <SelectValue>
-                      {(v: string) =>
-                        STATUS_LIST.find((s) => s.value === v)?.label ?? v
-                      }
+                      {(v: string) => STATUS_LIST.find((s) => s.value === v)?.label ?? v}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {STATUS_LIST.map((s) => (
-                      <SelectItem key={s.value} value={s.value}>
-                        {s.label}
-                      </SelectItem>
+                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <Input
-                  value={statusNotiz}
-                  onChange={(e) => setStatusNotiz(e.target.value)}
-                  placeholder="Optionale Notiz zum Kontakt (z. B. weiterhin keine Rückmeldung)"
-                  className="sm:max-w-md"
+              </div>
+
+              {/* b) Großes Notizfeld -> Text des Auto-Call-Verlaufseintrags. */}
+              <div className="space-y-1.5">
+                <Label htmlFor="call-notiz">Notiz zum Kontakt</Label>
+                <Textarea
+                  id="call-notiz"
+                  rows={5}
+                  value={callNotiz}
+                  onChange={(e) => setCallNotiz(e.target.value)}
+                  placeholder="Was war beim Kontakt? Wird beim Speichern als Text des Call-Eintrags übernommen…"
+                  data-testid="call-notiz"
                 />
-                <div className="flex items-center gap-2">
-                  <Button size="sm" onClick={speichereStatus} disabled={savingStatus} data-testid="status-save">
-                    {savingStatus && <Loader2 className="mr-2 size-4 animate-spin" />}
-                    {statusVal === schule.status ? "Status bestätigen" : "Status speichern"}
-                  </Button>
-                  <p className="text-xs text-muted-foreground">
-                    Kontakt-Status legt automatisch einen erfolgreichen Call an (max. 1×/Tag).
-                  </p>
+                <p className="text-xs text-muted-foreground">
+                  Ein Kontakt-Status (nicht „Neu“/„Nicht erreichbar“) legt beim Speichern
+                  automatisch einen erfolgreichen Call an — max. 1×/Tag; derselbe Status gilt
+                  als Bestätigung.
+                </p>
+              </div>
+
+              {/* c) Wiedervorlage – prominent mit Schnellwahl. */}
+              <div className="space-y-2">
+                <Label htmlFor="wv-date">Wiedervorlage am</Label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Input
+                    id="wv-date"
+                    type="date"
+                    value={wv}
+                    onChange={(e) => setWv(e.target.value)}
+                    className="w-44"
+                  />
+                  <Button type="button" variant="outline" size="sm" onClick={() => setWv(plusTageISO(7))}>+1 Woche</Button>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setWv(plusTageISO(14))}>+2 Wochen</Button>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setWv(plusTageISO(28))}>+4 Wochen</Button>
+                  {wv && (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setWv("")}>Löschen</Button>
+                  )}
                 </div>
               </div>
-            ) : (
-              <StatusBadge status={statusVal} />
-            )}
-          </div>
 
-          {/* Erstkontakt + Wiedervorlage. Erstkontakt ist fix (nur Admin
-              änderbar); Wiedervorlage kann die Leitung setzen -> Ampel zählt
-              ab dann neu. */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="erstkontakt">Erstkontakt am</Label>
-              {canEdit ? (
-                <Input
-                  id="erstkontakt"
-                  type="date"
-                  value={erstkontakt}
-                  onChange={(e) => setErstkontakt(e.target.value)}
+              {/* d) weniger wichtige Felder unten. */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="erstkontakt" className="text-xs text-muted-foreground">Erstkontakt am</Label>
+                  <Input id="erstkontakt" type="date" value={erstkontakt} onChange={(e) => setErstkontakt(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="flex items-center gap-2 text-xs text-muted-foreground">
+                    Schulart
+                    {savingSchulart && <Loader2 className="size-3 animate-spin" />}
+                  </Label>
+                  <Select value={schulartVal} onValueChange={(v) => changeSchulart((v as string) ?? "")} disabled={savingSchulart}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Schulart wählen">{(v: string) => v || "Schulart wählen"}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {schulartOptions.map((o) => (<SelectItem key={o} value={o}>{o}</SelectItem>))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="notiz" className="text-xs text-muted-foreground">Akquise-Notiz (Bestand)</Label>
+                <Textarea
+                  id="notiz"
+                  rows={3}
+                  value={notiz}
+                  onChange={(e) => setNotiz(e.target.value)}
+                  placeholder="Interne Notizen zur Akquise…"
                 />
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  {schule.erstkontakt_am
-                    ? formatDate(schule.erstkontakt_am)
-                    : "—"}
-                </p>
+              </div>
+
+              {/* e) Ein Button für alles. */}
+              <Button onClick={save} disabled={saving} data-testid="akquise-save">
+                {saving && <Loader2 className="mr-2 size-4 animate-spin" />}
+                Änderungen speichern
+              </Button>
+
+              {/* Zuordnung – nur Admin, eingeklappt ganz unten. */}
+              {admin && (
+                <div className="border-t pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setZuordnungOffen((o) => !o)}
+                    className="flex w-full items-center justify-between text-sm font-medium text-muted-foreground hover:text-foreground"
+                    data-testid="zuordnung-toggle"
+                  >
+                    Zuordnung
+                    <ChevronDown className={cn("size-4 transition-transform", zuordnungOffen && "rotate-180")} />
+                  </button>
+                  {zuordnungOffen && (
+                    <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label>Zuständige Leitung</Label>
+                        <Select value={zustaendig || "none"} onValueChange={(v) => setZustaendig(v && v !== "none" ? v : "")}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Nicht zugewiesen">
+                              {(v: string) => (v && v !== "none" ? leitungen.find((l) => l.id === v)?.name ?? "Nicht zugewiesen" : "Nicht zugewiesen")}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Nicht zugewiesen</SelectItem>
+                            {leitungen.map((l) => (<SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Standort</Label>
+                        <Select value={standort || "none"} onValueChange={(v) => setStandort(v && v !== "none" ? v : "")}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Kein Standort">
+                              {(v: string) => (v && v !== "none" ? standorte.find((s) => s.id === v)?.name ?? "Kein Standort" : "Kein Standort")}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Kein Standort</SelectItem>
+                            {standorte.map((s) => (<SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Zuordnung wird beim „Änderungen speichern“ mit übernommen.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            /* Read-only für Nicht-Bearbeiter. */
+            <div className="space-y-3 text-sm">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Status</p>
+                <StatusBadge status={statusVal} />
+              </div>
+              <InfoRow icon={Clock3} label="Wiedervorlage am">{schule.wiedervorlage_am ? formatDate(schule.wiedervorlage_am) : "—"}</InfoRow>
+              <InfoRow icon={Clock3} label="Erstkontakt am">{schule.erstkontakt_am ? formatDate(schule.erstkontakt_am) : "—"}</InfoRow>
+              <InfoRow icon={GraduationCap} label="Schulart">{schule.schulart ?? "—"}</InfoRow>
+              {schule.akquise_notiz && (
+                <div>
+                  <p className="text-xs text-muted-foreground">Akquise-Notiz</p>
+                  <p className="whitespace-pre-wrap">{schule.akquise_notiz}</p>
+                </div>
               )}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="wv-date">Wiedervorlage am</Label>
-              <Input
-                id="wv-date"
-                type="date"
-                value={wv}
-                onChange={(e) => setWv(e.target.value)}
-                disabled={!canEdit}
-              />
-            </div>
-          </div>
-
-          {/* Schulart – editierbar für Admin + zuständige Standort-Leitung;
-              speichert sofort bei Auswahl. */}
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              Schulart
-              {savingSchulart && (
-                <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
-              )}
-            </Label>
-            {canEditSchulart ? (
-              <Select
-                value={schulartVal}
-                onValueChange={(v) => changeSchulart((v as string) ?? "")}
-                disabled={savingSchulart}
-              >
-                <SelectTrigger className="w-full sm:max-w-xs">
-                  <SelectValue placeholder="Schulart wählen">
-                    {(v: string) => v || "Schulart wählen"}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {schulartOptions.map((o) => (
-                    <SelectItem key={o} value={o}>
-                      {o}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                {schule.schulart ?? "—"}
-              </p>
-            )}
-          </div>
-
-          {/* Zuständige Leitung + Standort: nur Admin darf ändern; für SL reine
-              Anzeige (zusätzlich per Server-Action + DB-Trigger abgesichert). */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Zuständige Leitung</Label>
-              {admin ? (
-                <Select value={zustaendig || "none"} onValueChange={(v) => setZustaendig(v && v !== "none" ? v : "")}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Nicht zugewiesen">
-                      {(v: string) =>
-                        v && v !== "none"
-                          ? leitungen.find((l) => l.id === v)?.name ??
-                            "Nicht zugewiesen"
-                          : "Nicht zugewiesen"
-                      }
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Nicht zugewiesen</SelectItem>
-                    {leitungen.map((l) => (
-                      <SelectItem key={l.id} value={l.id}>
-                        {l.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <p className="flex h-9 items-center rounded-md bg-muted/40 px-3 text-sm text-muted-foreground">
-                  {schule.leitung?.name ?? "Nicht zugewiesen"}
-                </p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label>Standort</Label>
-              {admin ? (
-                <Select value={standort || "none"} onValueChange={(v) => setStandort(v && v !== "none" ? v : "")}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Kein Standort">
-                      {(v: string) =>
-                        v && v !== "none"
-                          ? standorte.find((s) => s.id === v)?.name ??
-                            "Kein Standort"
-                          : "Kein Standort"
-                      }
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Kein Standort</SelectItem>
-                    {standorte.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <p className="flex h-9 items-center rounded-md bg-muted/40 px-3 text-sm text-muted-foreground">
-                  {standortName ?? "Kein Standort"}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="notiz">Akquise-Notiz</Label>
-            <Textarea
-              id="notiz"
-              rows={4}
-              value={notiz}
-              onChange={(e) => setNotiz(e.target.value)}
-              disabled={!canEdit}
-              placeholder="Interne Notizen zur Akquise…"
-            />
-          </div>
-
-          {canEdit && (
-            <Button onClick={save} disabled={!dirty || saving}>
-              {saving && <Loader2 className="mr-2 size-4 animate-spin" />}
-              Änderungen speichern
-            </Button>
           )}
         </CardContent>
       </Card>
