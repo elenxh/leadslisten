@@ -316,6 +316,102 @@ export async function deleteArbeitsstunde(id: string): Promise<SimpleResult> {
   return { ok: true };
 }
 
+// ===================== Tages-Notiz der SL (self oder Admin) ============
+export async function setTagNotiz(input: {
+  leitungId: string;
+  datum: string; // YYYY-MM-DD
+  notiz: string | null;
+}): Promise<SimpleResult> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: "Nicht angemeldet." };
+  if (!user.isAdmin && input.leitungId !== user.id)
+    return { ok: false, error: "Keine Berechtigung." };
+  const datum = (input.datum || "").slice(0, 10);
+  if (!datum) return { ok: false, error: "Datum fehlt." };
+  const ac = adminClientOrError();
+  if (!ac.ok) return ac;
+  const clean = norm(input.notiz);
+  if (clean === null) {
+    const { error } = await ac.admin
+      .from("tag_notizen")
+      .delete()
+      .eq("leitung_id", input.leitungId)
+      .eq("datum", datum);
+    if (error) return { ok: false, error: error.message };
+  } else {
+    const { error } = await ac.admin.from("tag_notizen").upsert(
+      { leitung_id: input.leitungId, datum, notiz: clean },
+      { onConflict: "leitung_id,datum" },
+    );
+    if (error) return { ok: false, error: error.message };
+  }
+  revalidatePath("/stundennachweis");
+  return { ok: true };
+}
+
+// ===================== Admin-Kommentar (NUR Admin) =====================
+export async function setAdminKommentar(input: {
+  leitungId: string;
+  zeitraumStart: string; // YYYY-MM-DD
+  datum: string | null; // null = seitenweit
+  kommentar: string | null;
+  farbe: "rot" | "gelb" | "gruen" | null;
+}): Promise<SimpleResult> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: "Nicht angemeldet." };
+  if (!user.isAdmin) return { ok: false, error: "Keine Berechtigung." };
+  const zeitraumStart = (input.zeitraumStart || "").slice(0, 10);
+  if (!zeitraumStart) return { ok: false, error: "Zeitraum fehlt." };
+  const datum = input.datum ? input.datum.slice(0, 10) : null;
+  const farbe =
+    input.farbe && ["rot", "gelb", "gruen"].includes(input.farbe)
+      ? input.farbe
+      : null;
+  const kommentar = norm(input.kommentar);
+
+  const ac = adminClientOrError();
+  if (!ac.ok) return ac;
+
+  // Bestehenden Eintrag suchen (Tag ODER seitenweit).
+  let q = ac.admin
+    .from("admin_kommentare")
+    .select("id")
+    .eq("leitung_id", input.leitungId);
+  q = datum === null ? q.eq("zeitraum_start", zeitraumStart).is("datum", null) : q.eq("datum", datum);
+  const { data: vorhanden } = await q.maybeSingle();
+  const id = (vorhanden as { id: string } | null)?.id ?? null;
+
+  // Leer -> löschen.
+  if (kommentar === null && farbe === null) {
+    if (id) {
+      const { error } = await ac.admin.from("admin_kommentare").delete().eq("id", id);
+      if (error) return { ok: false, error: error.message };
+    }
+    revalidatePath("/stundennachweis");
+    return { ok: true };
+  }
+
+  if (id) {
+    const { error } = await ac.admin
+      .from("admin_kommentare")
+      .update({ kommentar, farbe })
+      .eq("id", id);
+    if (error) return { ok: false, error: error.message };
+  } else {
+    const { error } = await ac.admin.from("admin_kommentare").insert({
+      leitung_id: input.leitungId,
+      zeitraum_start: zeitraumStart,
+      datum,
+      kommentar,
+      farbe,
+      created_by: user.id,
+    });
+    if (error) return { ok: false, error: error.message };
+  }
+  revalidatePath("/stundennachweis");
+  return { ok: true };
+}
+
 // ===================== Mehrarbeit-Bestätigung (nur Admin) ==============
 export async function setzeMehrarbeitBestaetigung(input: {
   leitungId: string;

@@ -1,0 +1,520 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { ChevronDown, ChevronLeft, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import Link from "next/link";
+
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+import {
+  rundeCalls,
+  stundenAusMinuten,
+  WOCHENTAG_KURZ,
+  type Auswertung,
+  type OrgaEintrag,
+  type StundenEintrag,
+  type TagAuswertung,
+  type WochenAuswertung,
+} from "@/lib/abrechnung";
+import {
+  createArbeitsstunde,
+  createOrgaZeit,
+  deleteArbeitsstunde,
+  deleteOrgaZeit,
+  setAdminKommentar,
+  setTagNotiz,
+  setzeMehrarbeitBestaetigung,
+  updateArbeitsstunde,
+  updateOrgaZeit,
+} from "@/app/stundennachweis/actions";
+
+const KAT_LABEL: Record<string, string> = {
+  meeting_teamleitung: "Meeting mit Teamleitung",
+  orga: "Orga",
+};
+const FARBE_CLASS: Record<string, string> = {
+  rot: "bg-red-500",
+  gelb: "bg-amber-400",
+  gruen: "bg-emerald-500",
+};
+
+interface KommentarInfo {
+  datum: string | null;
+  kommentar: string | null;
+  farbe: "rot" | "gelb" | "gruen" | null;
+}
+
+export function MonatClient({
+  istAdmin,
+  slId,
+  slName,
+  zeitraumStart,
+  zeitraumLabel,
+  auswertung,
+  bestaetigtWochen,
+  tagNotizen,
+  adminKommentare,
+}: {
+  istAdmin: boolean;
+  slId: string;
+  slName: string;
+  zeitraumStart: string;
+  zeitraumLabel: string;
+  auswertung: Auswertung;
+  bestaetigtWochen: string[];
+  tagNotizen: { datum: string; notiz: string | null }[];
+  adminKommentare: KommentarInfo[];
+}) {
+  const bestaetigt = new Set(bestaetigtWochen);
+  const notizMap = new Map(tagNotizen.map((t) => [t.datum, t.notiz]));
+  const kommentarMap = new Map(
+    adminKommentare.filter((k) => k.datum).map((k) => [k.datum as string, k]),
+  );
+  const seiteKommentar = adminKommentare.find((k) => !k.datum) ?? null;
+  const s = auswertung.summe;
+
+  return (
+    <main className="mx-auto max-w-3xl space-y-5 px-4 py-6">
+      <div>
+        <Link
+          href={`/stundennachweis/${slId}`}
+          className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ChevronLeft className="size-4" />
+          {slName} — Monatsseiten
+        </Link>
+        <h1 className="text-xl font-semibold">{slName}</h1>
+        <p className="text-sm text-muted-foreground">Abrechnungszeitraum {zeitraumLabel}</p>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <OrgaDialog leitungId={slId} />
+        <StundenDialog leitungId={slId} />
+      </div>
+
+      {istAdmin && (
+        <AdminKommentarFeld
+          leitungId={slId}
+          zeitraumStart={zeitraumStart}
+          datum={null}
+          initial={seiteKommentar}
+          titel="Admin-Notiz zur Monatsseite (für SL unsichtbar)"
+        />
+      )}
+
+      <div className="space-y-3">
+        {auswertung.wochen.map((w) => (
+          <WochenBlock
+            key={w.woche.key}
+            w={w}
+            istAdmin={istAdmin}
+            slId={slId}
+            zeitraumStart={zeitraumStart}
+            bestaetigt={bestaetigt.has(w.woche.key)}
+            notizMap={notizMap}
+            kommentarMap={kommentarMap}
+          />
+        ))}
+      </div>
+
+      <Card>
+        <CardContent className="space-y-2 p-4 text-sm">
+          <p className="font-medium">Zeitraum-Summe (26.–25.)</p>
+          <Row label={`Calls (${s.callsCount})`} value={`${stundenAusMinuten(s.callMinuten)} h`} />
+          <Row label={`Vor-Ort-Termine (${s.termineCount})`} value={`${stundenAusMinuten(s.terminMinuten)} h`} />
+          {s.orgaNachKategorie.map((o) => (
+            <Row key={o.kategorie} label={KAT_LABEL[o.kategorie] ?? o.kategorie} value={`${stundenAusMinuten(o.minuten)} h`} />
+          ))}
+          <div className="border-t pt-2">
+            <Row label={<span className="font-semibold">Berechnet gesamt</span>} value={<span className="font-semibold">{stundenAusMinuten(s.berechneteMinuten)} h</span>} />
+            <Row label={<span className="text-muted-foreground">Angegebene Stunden (SL)</span>} value={<span className="text-muted-foreground">{stundenAusMinuten(s.angegebeneMinuten)} h</span>} />
+          </div>
+          {s.mehrarbeitCalls > 0 && (
+            <p className="rounded-md bg-amber-500/10 px-2 py-1 text-amber-700 dark:text-amber-300">
+              Mehrarbeit im Zeitraum: {rundeCalls(s.mehrarbeitCalls)} Calls über Soll
+            </p>
+          )}
+        </CardContent>
+      </Card>
+    </main>
+  );
+}
+
+function Row({ label, value }: { label: React.ReactNode; value: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span>{label}</span>
+      <span className="tabular-nums">{value}</span>
+    </div>
+  );
+}
+
+function WochenBlock({
+  w,
+  istAdmin,
+  slId,
+  zeitraumStart,
+  bestaetigt,
+  notizMap,
+  kommentarMap,
+}: {
+  w: WochenAuswertung;
+  istAdmin: boolean;
+  slId: string;
+  zeitraumStart: string;
+  bestaetigt: boolean;
+  notizMap: Map<string, string | null>;
+  kommentarMap: Map<string, KommentarInfo>;
+}) {
+  const [open, setOpen] = useState(true);
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const hatMehrarbeit = w.mehrarbeitCalls > 0;
+
+  function toggleBestaetigt() {
+    start(async () => {
+      const res = await setzeMehrarbeitBestaetigung({ leitungId: slId, wocheStart: w.woche.key, bestaetigt: !bestaetigt });
+      if (!res.ok) { toast.error("Fehlgeschlagen", { description: res.error }); return; }
+      router.refresh();
+    });
+  }
+
+  return (
+    <Card data-testid="wochen-block">
+      <button type="button" onClick={() => setOpen((o) => !o)} className="flex w-full items-center gap-3 px-4 py-3 text-left">
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium">KW {w.woche.label}</span>
+          <span className="block text-xs text-muted-foreground">
+            {w.calls.length} Calls · {w.termine.length} Termine ·{" "}
+            {w.sollCalls == null ? "kein Vertragsmodell" : (<>Soll {rundeCalls(w.istCallAequivalent)}/{rundeCalls(w.sollCalls)} {w.erfuellt ? "✓" : "✗"}</>)}
+            {" "}· ber. {stundenAusMinuten(w.berechneteMinuten)} h · ang. {stundenAusMinuten(w.angegebeneMinuten)} h
+          </span>
+        </span>
+        {hatMehrarbeit && (
+          <span className={cn("rounded-md px-2 py-0.5 text-xs font-medium", bestaetigt ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" : "bg-amber-500/20 text-amber-800 dark:text-amber-200")} data-testid="mehrarbeit-badge">
+            Mehrarbeit {rundeCalls(w.mehrarbeitCalls)} · {bestaetigt ? "bestätigt" : "offen"}
+          </span>
+        )}
+        <ChevronDown className={cn("size-4 text-muted-foreground transition-transform", open && "rotate-180")} />
+      </button>
+
+      {open && (
+        <CardContent className="border-t p-0">
+          {hatMehrarbeit && istAdmin && (
+            <div className="px-4 pt-3">
+              <Button size="sm" variant="outline" onClick={toggleBestaetigt} disabled={pending}>
+                {pending && <Loader2 className="mr-2 size-4 animate-spin" />}
+                {bestaetigt ? "Bestätigung zurücknehmen" : "Mehrarbeit bestätigen"}
+              </Button>
+            </div>
+          )}
+          <div className="divide-y">
+            {w.tage.map((t) => (
+              <TagZeile
+                key={t.datumISO}
+                t={t}
+                istAdmin={istAdmin}
+                slId={slId}
+                zeitraumStart={zeitraumStart}
+                notiz={notizMap.get(t.datumISO) ?? null}
+                kommentar={kommentarMap.get(t.datumISO) ?? null}
+              />
+            ))}
+          </div>
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
+function TagZeile({
+  t,
+  istAdmin,
+  slId,
+  zeitraumStart,
+  notiz,
+  kommentar,
+}: {
+  t: TagAuswertung;
+  istAdmin: boolean;
+  slId: string;
+  zeitraumStart: string;
+  notiz: string | null;
+  kommentar: KommentarInfo | null;
+}) {
+  const [, d2, d3] = t.datumISO.split("-");
+  const leer = t.calls.length + t.termine.length + t.orga.length + t.stunden.length === 0;
+  return (
+    <div className={cn("flex gap-3 px-4 py-2", !t.imZeitraum && "opacity-60")}>
+      <div className="w-14 shrink-0 pt-0.5 text-xs">
+        <div className="font-medium">{WOCHENTAG_KURZ[t.wochentag - 1]}</div>
+        <div className="text-muted-foreground">{d3}.{d2}.</div>
+      </div>
+      <div className="min-w-0 flex-1 space-y-1 text-sm">
+        {leer && <p className="text-xs text-muted-foreground">—</p>}
+        {t.calls.map((c) => (
+          <p key={c.id} className="truncate">
+            <span className="text-emerald-600 dark:text-emerald-400">● Call</span> {c.schuleName ?? "—"}
+            {c.notiz ? <span className="text-muted-foreground"> · {c.notiz}</span> : null}
+          </p>
+        ))}
+        {t.termine.map((tm) => (
+          <p key={tm.id} className="truncate">
+            <span className="text-blue-600 dark:text-blue-400">◆ Vor-Ort</span> {tm.schuleName ?? "—"}
+            {tm.notiz ? <span className="text-muted-foreground"> · {tm.notiz}</span> : null}
+          </p>
+        ))}
+        {t.orga.map((o) => (
+          <p key={o.id} className="flex items-center justify-between gap-2">
+            <span className="truncate">
+              <span className="text-purple-600 dark:text-purple-400">■ {KAT_LABEL[o.kategorie] ?? o.kategorie}</span> {o.minuten} min
+              {o.beschreibung ? <span className="text-muted-foreground"> · {o.beschreibung}</span> : null}
+            </span>
+            <span className="flex shrink-0 gap-1">
+              <OrgaDialog leitungId={slId} eintrag={o} />
+              <LoeschButton onDelete={() => deleteOrgaZeit(o.id)} />
+            </span>
+          </p>
+        ))}
+        {t.stunden.map((st) => (
+          <p key={st.id} className="flex items-center justify-between gap-2">
+            <span className="truncate">
+              <span className="text-muted-foreground">▲ Angegeben</span> {stundenAusMinuten(st.minuten)} h
+              {st.notiz ? <span className="text-muted-foreground"> · {st.notiz}</span> : null}
+            </span>
+            <span className="flex shrink-0 gap-1">
+              <StundenDialog leitungId={slId} eintrag={st} />
+              <LoeschButton onDelete={() => deleteArbeitsstunde(st.id)} />
+            </span>
+          </p>
+        ))}
+
+        <TagNotizFeld leitungId={slId} datum={t.datumISO} initial={notiz} />
+        {istAdmin && (
+          <AdminKommentarFeld
+            leitungId={slId}
+            zeitraumStart={zeitraumStart}
+            datum={t.datumISO}
+            initial={kommentar}
+            titel="Admin (unsichtbar für SL)"
+            kompakt
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TagNotizFeld({ leitungId, datum, initial }: { leitungId: string; datum: string; initial: string | null }) {
+  const router = useRouter();
+  const [val, setVal] = useState(initial ?? "");
+  const [pending, start] = useTransition();
+  const dirty = val !== (initial ?? "");
+
+  function save() {
+    if (!dirty) return;
+    start(async () => {
+      const res = await setTagNotiz({ leitungId, datum, notiz: val.trim() || null });
+      if (!res.ok) { toast.error("Notiz nicht gespeichert", { description: res.error }); return; }
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="flex items-center gap-2 pt-0.5">
+      <Input
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        onBlur={save}
+        placeholder="Notiz…"
+        className="h-7 text-xs"
+        data-testid="tag-notiz"
+      />
+      {pending && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
+    </div>
+  );
+}
+
+function AdminKommentarFeld({
+  leitungId,
+  zeitraumStart,
+  datum,
+  initial,
+  titel,
+  kompakt,
+}: {
+  leitungId: string;
+  zeitraumStart: string;
+  datum: string | null;
+  initial: KommentarInfo | null;
+  titel: string;
+  kompakt?: boolean;
+}) {
+  const router = useRouter();
+  const [text, setText] = useState(initial?.kommentar ?? "");
+  const [farbe, setFarbe] = useState<"rot" | "gelb" | "gruen" | null>(initial?.farbe ?? null);
+  const [pending, start] = useTransition();
+
+  function save(nextFarbe: "rot" | "gelb" | "gruen" | null = farbe, nextText: string = text) {
+    start(async () => {
+      const res = await setAdminKommentar({
+        leitungId,
+        zeitraumStart,
+        datum,
+        kommentar: nextText.trim() || null,
+        farbe: nextFarbe,
+      });
+      if (!res.ok) { toast.error("Kommentar nicht gespeichert", { description: res.error }); return; }
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className={cn("rounded-md border border-dashed border-amber-500/40 bg-amber-500/5 p-2", kompakt ? "" : "space-y-1")} data-testid="admin-kommentar">
+      <div className="flex items-center gap-2">
+        <span className="text-[11px] font-medium text-amber-700 dark:text-amber-300">{titel}</span>
+        <span className="flex gap-1">
+          {(["rot", "gelb", "gruen"] as const).map((f) => (
+            <button
+              key={f}
+              type="button"
+              aria-label={f}
+              onClick={() => {
+                const nf = farbe === f ? null : f;
+                setFarbe(nf);
+                save(nf, text);
+              }}
+              className={cn("size-4 rounded-full border", FARBE_CLASS[f], farbe === f ? "ring-2 ring-offset-1 ring-foreground/50" : "opacity-50")}
+            />
+          ))}
+        </span>
+        {pending && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
+      </div>
+      <Input
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => save(farbe, text)}
+        placeholder="Kommentar…"
+        className="mt-1 h-7 text-xs"
+        data-testid="admin-kommentar-input"
+      />
+    </div>
+  );
+}
+
+function LoeschButton({ onDelete }: { onDelete: () => Promise<{ ok: boolean; error?: string }> }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  return (
+    <Button type="button" variant="ghost" size="icon" className="size-6 text-muted-foreground hover:text-destructive" aria-label="Löschen" disabled={pending}
+      onClick={() => start(async () => { const res = await onDelete(); if (!res.ok) { toast.error("Löschen fehlgeschlagen", { description: res.error }); return; } router.refresh(); })}>
+      {pending ? <Loader2 className="size-3 animate-spin" /> : <Trash2 className="size-3" />}
+    </Button>
+  );
+}
+
+function OrgaDialog({ leitungId, eintrag }: { leitungId: string; eintrag?: OrgaEintrag }) {
+  const router = useRouter();
+  const isEdit = !!eintrag;
+  const [open, setOpen] = useState(false);
+  const [pending, start] = useTransition();
+  const [datum, setDatum] = useState(eintrag?.datumISO ?? "");
+  const [minuten, setMinuten] = useState(String(eintrag?.minuten ?? ""));
+  const [kategorie, setKategorie] = useState<string>(eintrag?.kategorie ?? "orga");
+  const [beschreibung, setBeschreibung] = useState(eintrag?.beschreibung ?? "");
+
+  function save() {
+    start(async () => {
+      const felder = { datum, dauer_minuten: Number(minuten), kategorie: kategorie as "meeting_teamleitung" | "orga", beschreibung };
+      const res = eintrag ? await updateOrgaZeit(eintrag.id, felder) : await createOrgaZeit(leitungId, felder);
+      if (!res.ok) { toast.error("Speichern fehlgeschlagen", { description: res.error }); return; }
+      toast.success("Gespeichert"); setOpen(false); router.refresh();
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={isEdit ? <Button type="button" variant="ghost" size="icon" className="size-6" aria-label="Bearbeiten" /> : <Button type="button" variant="outline" size="sm" data-testid="orga-add" />}>
+        {isEdit ? <Pencil className="size-3" /> : (<><Plus className="mr-1.5 size-4" />Orga / Meeting</>)}
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle>{isEdit ? "Orga bearbeiten" : "Orga / Meeting erfassen"}</DialogTitle><DialogDescription>Datum, Dauer, Kategorie, Beschreibung.</DialogDescription></DialogHeader>
+        <div className="space-y-3 py-2">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5"><Label>Datum</Label><Input type="date" value={datum} onChange={(e) => setDatum(e.target.value)} /></div>
+            <div className="space-y-1.5"><Label>Dauer (Minuten)</Label><Input type="number" min={1} value={minuten} onChange={(e) => setMinuten(e.target.value)} /></div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Kategorie</Label>
+            <Select value={kategorie} onValueChange={(v) => setKategorie(v as string)}>
+              <SelectTrigger className="w-full"><SelectValue>{(v: string) => KAT_LABEL[v] ?? "Kategorie"}</SelectValue></SelectTrigger>
+              <SelectContent><SelectItem value="meeting_teamleitung">Meeting mit Teamleitung</SelectItem><SelectItem value="orga">Orga</SelectItem></SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5"><Label>Beschreibung</Label><Textarea rows={2} value={beschreibung} onChange={(e) => setBeschreibung(e.target.value)} /></div>
+        </div>
+        <DialogFooter><Button onClick={save} disabled={pending || !datum || !(Number(minuten) > 0)}>{pending && <Loader2 className="mr-2 size-4 animate-spin" />}Speichern</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function StundenDialog({ leitungId, eintrag }: { leitungId: string; eintrag?: StundenEintrag }) {
+  const router = useRouter();
+  const isEdit = !!eintrag;
+  const [open, setOpen] = useState(false);
+  const [pending, start] = useTransition();
+  const [datum, setDatum] = useState(eintrag?.datumISO ?? "");
+  const [stunden, setStunden] = useState(eintrag ? String(eintrag.minuten / 60) : "");
+  const [notiz, setNotiz] = useState(eintrag?.notiz ?? "");
+
+  function save() {
+    start(async () => {
+      const felder = { datum, minuten: Math.round(Number(stunden) * 60), notiz };
+      const res = eintrag ? await updateArbeitsstunde(eintrag.id, felder) : await createArbeitsstunde(leitungId, felder);
+      if (!res.ok) { toast.error("Speichern fehlgeschlagen", { description: res.error }); return; }
+      toast.success("Gespeichert"); setOpen(false); router.refresh();
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={isEdit ? <Button type="button" variant="ghost" size="icon" className="size-6" aria-label="Bearbeiten" /> : <Button type="button" variant="outline" size="sm" data-testid="stunden-add" />}>
+        {isEdit ? <Pencil className="size-3" /> : (<><Plus className="mr-1.5 size-4" />Arbeitsstunden</>)}
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle>{isEdit ? "Arbeitsstunden bearbeiten" : "Arbeitsstunden erfassen"}</DialogTitle><DialogDescription>Tatsächlich gearbeitete Stunden (Selbstangabe, ändert die Vergütung nicht).</DialogDescription></DialogHeader>
+        <div className="space-y-3 py-2">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5"><Label>Datum</Label><Input type="date" value={datum} onChange={(e) => setDatum(e.target.value)} /></div>
+            <div className="space-y-1.5"><Label>Stunden</Label><Input type="number" min={0} step={0.25} value={stunden} onChange={(e) => setStunden(e.target.value)} /></div>
+          </div>
+          <div className="space-y-1.5"><Label>Notiz</Label><Textarea rows={2} value={notiz} onChange={(e) => setNotiz(e.target.value)} /></div>
+        </div>
+        <DialogFooter><Button onClick={save} disabled={pending || !datum || !(Number(stunden) > 0)}>{pending && <Loader2 className="mr-2 size-4 animate-spin" />}Speichern</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
