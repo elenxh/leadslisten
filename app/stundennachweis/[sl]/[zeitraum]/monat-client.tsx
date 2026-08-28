@@ -261,18 +261,36 @@ function TagZeile({
             {tm.notiz ? <span className="text-muted-foreground"> · {tm.notiz}</span> : null}
           </p>
         ))}
-        {t.orga.map((o) => (
-          <p key={o.id} className="flex items-center justify-between gap-2">
-            <span className="truncate">
-              <span className="text-purple-600 dark:text-purple-400">■ {KAT_LABEL[o.kategorie] ?? o.kategorie}</span> {o.minuten} min
-              {o.beschreibung ? <span className="text-muted-foreground"> · {o.beschreibung}</span> : null}
-            </span>
-            <span className="flex shrink-0 gap-1">
-              <OrgaDialog leitungId={slId} eintrag={o} />
-              <LoeschButton onDelete={() => deleteOrgaZeit(o.id)} />
-            </span>
-          </p>
-        ))}
+        {t.orga.map((o) =>
+          o.quelle === "protokoll" ? (
+            <p key={o.id} className="flex items-center justify-between gap-2">
+              <span className="truncate">
+                <span className="text-purple-600 dark:text-purple-400">■ Meeting</span>{" "}
+                {o.dauerFehlt ? (
+                  <span className="font-medium text-destructive">Dauer fehlt</span>
+                ) : (
+                  `${o.minuten} min`
+                )}
+                {o.beschreibung ? <span className="text-muted-foreground"> · {o.beschreibung}</span> : null}
+                <span className="text-muted-foreground"> · aus Gesprächsprotokoll</span>
+              </span>
+              <Link href={`/team/${slId}`} className="shrink-0 text-xs text-primary hover:underline">
+                öffnen
+              </Link>
+            </p>
+          ) : (
+            <p key={o.id} className="flex items-center justify-between gap-2">
+              <span className="truncate">
+                <span className="text-purple-600 dark:text-purple-400">■ {KAT_LABEL[o.kategorie] ?? o.kategorie}</span> {o.minuten} min
+                {o.beschreibung ? <span className="text-muted-foreground"> · {o.beschreibung}</span> : null}
+              </span>
+              <span className="flex shrink-0 gap-1">
+                <OrgaDialog leitungId={slId} eintrag={o} />
+                <LoeschButton onDelete={() => deleteOrgaZeit(o.id)} />
+              </span>
+            </p>
+          ),
+        )}
         {t.stunden.map((st) => (
           <p key={st.id} className="flex items-center justify-between gap-2">
             <span className="truncate">

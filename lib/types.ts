@@ -119,6 +119,7 @@ export interface Gespraechsprotokoll {
   schritte: ProtokollSchritt[]; // Tabelle Was/Wer/Bis wann
   wiedervorlage_am: string | null; // ISO date
   ampel: ProtokollAmpel | null;
+  dauer_minuten: number | null; // Meeting-Dauer -> Stundennachweis (NULL = "Dauer fehlt")
   created_at: string;
   updated_at: string;
 }

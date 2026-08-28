@@ -49,6 +49,7 @@ export interface ProtokollInput {
   schritte?: ProtokollSchritt[];
   wiedervorlage_am?: string | null; // YYYY-MM-DD
   ampel?: ProtokollAmpel | null;
+  dauer_minuten?: number | null; // Meeting-Dauer (Pflicht bei neuen Protokollen)
 }
 
 const norm = (v: string | null | undefined) => {
@@ -84,6 +85,12 @@ function buildUpdate(felder: ProtokollInput): Record<string, unknown> {
         ? felder.ampel
         : null;
   }
+  if (felder.dauer_minuten !== undefined) {
+    update.dauer_minuten =
+      felder.dauer_minuten && felder.dauer_minuten > 0
+        ? Math.round(felder.dauer_minuten)
+        : null;
+  }
   return update;
 }
 
@@ -97,6 +104,9 @@ export async function createProtokoll(
   if (!user) return { ok: false, error: "Nicht angemeldet." };
   if (!user.isAdmin && user.id !== leitungId)
     return { ok: false, error: "Keine Berechtigung." };
+  // Dauer ist Pflicht bei neuen Protokollen (Meeting-Kopplung Stundennachweis).
+  if (!(felder.dauer_minuten && felder.dauer_minuten > 0))
+    return { ok: false, error: "Bitte die Dauer (Minuten) angeben." };
 
   const ac = adminClientOrError();
   if (!ac.ok) return ac;
