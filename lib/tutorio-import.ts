@@ -67,7 +67,8 @@ function istBeispielZeile(felder: (string | null)[]): boolean {
   });
 }
 
-// Reiter-Klassifikation: welche der 4 Daten-Reiter (oder ignorieren).
+// Reiter-Klassifikation (Vorlage v2): 2 Daten-Reiter „Schulen" und „Soziale
+// Träger". Alles andere (Anleitungsblatt, Unbekanntes) wird ignoriert.
 function classifySheet(
   sheetName: string,
 ): { typ: "schule" | "traeger" } | null {
@@ -77,8 +78,8 @@ function classifySheet(
   if (/anleitung|beispiel|hinweis|erklar|lies mich|readme|vorlage info/.test(n)) {
     return null;
   }
-  if (/trager|sozial/.test(n)) return { typ: "traeger" };
-  if (/grundschule|gymnasium|weiterf/.test(n)) return { typ: "schule" };
+  if (/trager|sozial/.test(n)) return { typ: "traeger" }; // "Soziale Träger"
+  if (/schule/.test(n)) return { typ: "schule" }; // "Schulen"
   return null; // unbekannter Reiter -> ignorieren
 }
 

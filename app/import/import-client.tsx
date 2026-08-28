@@ -135,7 +135,7 @@ export function TutorioImportClient({ standorte }: { standorte: Standort[] }) {
         <h1 className="text-xl font-semibold">Schulen & Träger importieren</h1>
         <p className="text-sm text-muted-foreground">
           Excel nach der Vorlage „Tutorio_Vorlage_Schulen_und_Träger“ (.xlsx).
-          Reiter: Grundschule · Weiterführende · Gymnasium · Soziale Träger.
+          Reiter: Schulen · Soziale Träger.
         </p>
       </div>
 
