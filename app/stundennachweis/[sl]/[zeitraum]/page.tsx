@@ -7,13 +7,10 @@ import {
   auswerten,
   wochenImZeitraum,
   zeitraumFuer,
-  type CallEintrag,
-  type OrgaEintrag,
-  type StundenEintrag,
-  type TerminEintrag,
   type Vertragsmodell,
   type VertragZuweisung,
 } from "@/lib/abrechnung";
+import { sammleEintraege } from "@/lib/stundennachweis-data";
 import type { AdminKommentar } from "@/lib/types";
 import { MonatClient } from "./monat-client";
 
@@ -52,31 +49,13 @@ export default async function MonatPage({
   }
 
   const targetId = params.sl;
-  const [
-    { data: anrufeData },
-    { data: orgaData },
-    { data: stundenData },
-    { data: vertragData },
-    { data: modelleData },
-    { data: tagNotizData },
-    { data: protokollData },
-    { data: slMeetingData },
-  ] = await Promise.all([
-    supabase
-      .from("anrufe")
-      .select("id, datum, typ, ergebnis, text, schule:schule_id(name)")
-      .eq("leitung_id", targetId)
-      .gte("datum", `${rangeStart}T00:00:00`)
-      .lte("datum", `${rangeEnd}T23:59:59`)
-      .order("datum", { ascending: true }),
-    supabase.from("orga_zeiten").select("*").eq("leitung_id", targetId).gte("datum", rangeStart).lte("datum", rangeEnd),
-    supabase.from("arbeitsstunden").select("*").eq("leitung_id", targetId).gte("datum", rangeStart).lte("datum", rangeEnd),
-    supabase.from("leitung_vertrag").select("vertragsmodell_id, gilt_ab").eq("leitung_id", targetId),
-    supabase.from("vertragsmodelle").select("*").order("name"),
-    supabase.from("tag_notizen").select("datum, notiz").eq("leitung_id", targetId).gte("datum", rangeStart).lte("datum", rangeEnd),
-    supabase.from("gespraechsprotokolle").select("id, datum, thema, dauer_minuten").eq("leitung_id", targetId).gte("datum", rangeStart).lte("datum", rangeEnd),
-    supabase.from("sl_meetings").select("id, datum, uhrzeit, dauer_minuten, titel, sl_meeting_teilnehmer!inner(leitung_id)").eq("sl_meeting_teilnehmer.leitung_id", targetId).gte("datum", rangeStart).lte("datum", rangeEnd),
-  ]);
+  const [bundle, { data: vertragData }, { data: modelleData }, { data: tagNotizData }] =
+    await Promise.all([
+      sammleEintraege(supabase, targetId, rangeStart, rangeEnd),
+      supabase.from("leitung_vertrag").select("vertragsmodell_id, gilt_ab").eq("leitung_id", targetId),
+      supabase.from("vertragsmodelle").select("*").order("name"),
+      supabase.from("tag_notizen").select("datum, notiz").eq("leitung_id", targetId).gte("datum", rangeStart).lte("datum", rangeEnd),
+    ]);
 
   // Admin-Kommentare NUR für Admin laden (RLS blockt SL ohnehin).
   let adminKommentare: AdminKommentar[] = [];
@@ -92,65 +71,11 @@ export default async function MonatPage({
     );
   }
 
-  type AnrufRow = {
-    id: string;
-    datum: string;
-    typ: string;
-    ergebnis: string | null;
-    text: string | null;
-    schule: { name: string } | null;
-  };
-  const anrufe = (anrufeData ?? []) as unknown as AnrufRow[];
-  const calls: CallEintrag[] = anrufe
-    .filter((a) => a.typ === "telefonat" && a.ergebnis === "erreicht")
-    .map((a) => ({ id: a.id, datumISO: a.datum.slice(0, 10), schuleName: a.schule?.name ?? null, notiz: a.text }));
-  const termine: TerminEintrag[] = anrufe
-    .filter((a) => a.typ === "vor_ort")
-    .map((a) => ({ id: a.id, datumISO: a.datum.slice(0, 10), schuleName: a.schule?.name ?? null, notiz: a.text }));
-
-  type OrgaRow = { id: string; datum: string; dauer_minuten: number; kategorie: "meeting_teamleitung" | "orga"; beschreibung: string | null };
-  const orgaEcht: OrgaEintrag[] = ((orgaData ?? []) as OrgaRow[]).map((o) => ({
-    id: o.id, datumISO: o.datum.slice(0, 10), minuten: o.dauer_minuten, kategorie: o.kategorie, beschreibung: o.beschreibung, quelle: "orga",
-  }));
-
-  // 1:1-Gesprächsprotokolle als Meeting-Zeit (read-only). Ohne Dauer -> 0 Min + Marker.
-  type ProtokollRow = { id: string; datum: string; thema: string | null; dauer_minuten: number | null };
-  const protokollMeetings: OrgaEintrag[] = ((protokollData ?? []) as ProtokollRow[]).map((p) => ({
-    id: `p:${p.id}`,
-    datumISO: p.datum.slice(0, 10),
-    minuten: p.dauer_minuten ?? 0,
-    kategorie: "meeting_teamleitung",
-    beschreibung: p.thema,
-    quelle: "protokoll",
-    refId: p.id,
-    dauerFehlt: p.dauer_minuten == null,
-  }));
-  // SL-Meetings (vom Admin angelegt) als Meeting-Zeit, read-only, eigene Kennung.
-  type SLMeetingRow = { id: string; datum: string; uhrzeit: string | null; dauer_minuten: number; titel: string };
-  const slMeetings: OrgaEintrag[] = ((slMeetingData ?? []) as unknown as SLMeetingRow[]).map((m) => ({
-    id: `slm:${m.id}`,
-    datumISO: m.datum.slice(0, 10),
-    minuten: m.dauer_minuten,
-    kategorie: "sl_meeting",
-    beschreibung: m.uhrzeit ? `${m.titel} · ${m.uhrzeit}` : m.titel,
-    quelle: "sl_meeting",
-  }));
-
-  const orga: OrgaEintrag[] = [...orgaEcht, ...protokollMeetings, ...slMeetings];
-
-  type StundenRow = { id: string; datum: string; minuten: number; notiz: string | null };
-  const stunden: StundenEintrag[] = ((stundenData ?? []) as StundenRow[]).map((s) => ({
-    id: s.id, datumISO: s.datum.slice(0, 10), minuten: s.minuten, notiz: s.notiz,
-  }));
-
   const auswertung = auswerten({
     zeitraum,
     modelle: (modelleData ?? []) as Vertragsmodell[],
     zuweisungen: (vertragData ?? []) as VertragZuweisung[],
-    calls,
-    termine,
-    orga,
-    stunden,
+    ...bundle,
   });
 
   const tagNotizen = ((tagNotizData ?? []) as { datum: string; notiz: string | null }[]).map((t) => ({
