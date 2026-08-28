@@ -97,7 +97,9 @@ export default async function SchulePage({
     <>
       <AppHeader leitung={me} />
       <SchuleDetail
-        schule={schuleTyped}
+        // notiz_original_backup (0013-Rettungsanker) NIE an den Client schicken:
+        // nur die editierbare notiz_original geht raus, das Backup bleibt DB-seitig.
+        schule={{ ...schuleTyped, notiz_original_backup: null }}
         anrufe={(anrufeData ?? []) as unknown as AnrufMitLeitung[]}
         me={me}
         canEdit={canEdit}

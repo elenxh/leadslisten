@@ -196,6 +196,24 @@ export function SchuleDetail({
     router.refresh();
   }
 
+  // Ursprungsnotiz (notiz_original) – Import-Rohtext, frei editier-/leerbar.
+  // Das Backup notiz_original_backup wird hier NICHT angezeigt/geändert.
+  const [urspr, setUrspr] = useState(schule.notiz_original ?? "");
+  const [savingUrspr, setSavingUrspr] = useState(false);
+  const ursprDirty = urspr !== (schule.notiz_original ?? "");
+
+  async function saveUrsprung() {
+    setSavingUrspr(true);
+    const res = await updateSchuleFelder(schule.id, { notiz_original: urspr });
+    setSavingUrspr(false);
+    if (!res.ok) {
+      toast.error("Speichern fehlgeschlagen", { description: res.error });
+      return;
+    }
+    toast.success("Ursprungsnotiz gespeichert");
+    router.refresh();
+  }
+
   async function changeStatus(v: SchulStatus) {
     const prev = statusVal;
     setStatusVal(v);
@@ -435,12 +453,38 @@ export function SchuleDetail({
             </div>
           )}
 
-          {schule.notiz_original && (
-            <div>
-              <p className="text-xs text-muted-foreground">Ursprungsnotiz</p>
-              <p className="whitespace-pre-wrap">{schule.notiz_original}</p>
-            </div>
-          )}
+          {canEdit
+            ? schule.notiz_original && (
+                <div className="space-y-2">
+                  <Label htmlFor="urspr-notiz">Ursprungsnotiz</Label>
+                  <Textarea
+                    id="urspr-notiz"
+                    rows={4}
+                    value={urspr}
+                    onChange={(e) => setUrspr(e.target.value)}
+                    placeholder="Import-Rohtext – Infos in die passenden Felder übernehmen und hier entfernen …"
+                  />
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <Button
+                      onClick={saveUrsprung}
+                      disabled={!ursprDirty || savingUrspr}
+                      size="sm"
+                    >
+                      {savingUrspr && <Loader2 className="mr-2 size-4 animate-spin" />}
+                      Ursprungsnotiz speichern
+                    </Button>
+                    <p className="text-xs text-muted-foreground">
+                      Komplett leeren = löschen. Die Sicherheitskopie bleibt erhalten.
+                    </p>
+                  </div>
+                </div>
+              )
+            : schule.notiz_original && (
+                <div>
+                  <p className="text-xs text-muted-foreground">Ursprungsnotiz</p>
+                  <p className="whitespace-pre-wrap">{schule.notiz_original}</p>
+                </div>
+              )}
 
           <Separator />
           <KontakteSection
