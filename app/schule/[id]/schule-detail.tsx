@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -132,7 +132,7 @@ export function SchuleDetail({
 
   // Status: sofortiges Speichern via Server-Action (Standort-Berechtigung).
   const [statusVal, setStatusVal] = useState<SchulStatus>(schule.status);
-  const [savingStatus, setSavingStatus] = useState(false);
+  const [savingStatus, startStatus] = useTransition();
 
   const [wv, setWv] = useState(schule.wiedervorlage_am?.slice(0, 10) ?? "");
   const [erstkontakt, setErstkontakt] = useState(
@@ -219,21 +219,21 @@ export function SchuleDetail({
   // Status erzeugt serverseitig automatisch einen erfolgreichen Call.
   const [statusNotiz, setStatusNotiz] = useState("");
 
-  async function speichereStatus() {
-    setSavingStatus(true);
-    const res = await updateStatus(schule.id, statusVal, statusNotiz.trim() || null);
-    setSavingStatus(false);
-    if (!res.ok) {
-      toast.error("Status konnte nicht gespeichert werden", {
-        description: res.error,
-      });
-      return;
-    }
-    setStatusNotiz("");
-    toast.success(
-      statusVal === schule.status ? "Status bestätigt" : "Status aktualisiert",
-    );
-    router.refresh();
+  function speichereStatus() {
+    startStatus(async () => {
+      const res = await updateStatus(schule.id, statusVal, statusNotiz.trim() || null);
+      if (!res.ok) {
+        toast.error("Status konnte nicht gespeichert werden", {
+          description: res.error,
+        });
+        return;
+      }
+      setStatusNotiz("");
+      toast.success(
+        statusVal === schule.status ? "Status bestätigt" : "Status aktualisiert",
+      );
+      router.refresh();
+    });
   }
 
   // Schulart wird sofort bei Auswahl gespeichert (eigene Server-Action).
