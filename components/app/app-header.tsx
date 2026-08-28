@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { CalendarDays, ClipboardList, Clock, FileUp, LogOut, ShieldCheck, Upload, Users, Wallet } from "lucide-react";
+import { Calendar, CalendarDays, ClipboardList, Clock, FileUp, LogOut, ShieldCheck, Upload, Users, Wallet } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -41,6 +41,10 @@ export function AppHeader({ leitung }: { leitung: Leitung }) {
           <Button variant="ghost" size="sm" render={<Link href="/team" />}>
             <ClipboardList className="size-4 sm:mr-1.5" />
             <span className="hidden sm:inline">Team</span>
+          </Button>
+          <Button variant="ghost" size="sm" render={<Link href="/kalender" />}>
+            <Calendar className="size-4 sm:mr-1.5" />
+            <span className="hidden sm:inline">Kalender</span>
           </Button>
           <Button variant="ghost" size="sm" render={<Link href="/stundennachweis" />}>
             <Clock className="size-4 sm:mr-1.5" />
