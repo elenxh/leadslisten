@@ -1,13 +1,19 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, FileText } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 
 import { AppHeader } from "@/components/app/app-header";
-import { Card } from "@/components/ui/card";
 import { isAdmin, requireLeitung } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { todayISO } from "@/lib/dates";
-import { zeitraumListe } from "@/lib/abrechnung";
+import {
+  MONATE_KURZ,
+  zeitraumFuer,
+  zeitraumFuerMonat,
+  zeitraumListe,
+  zeitraumMonat,
+} from "@/lib/abrechnung";
+import { OrdnerNavigation, type MonatsKachel } from "./ordner-navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +36,31 @@ export default async function OrdnerPage({
     .maybeSingle();
   if (!sl) notFound();
 
-  const zeitraeume = zeitraumListe(todayISO(), 11);
+  const heute = todayISO();
+  const aktuell = zeitraumFuer(heute);
+  const aktuellMonat = zeitraumMonat(aktuell);
+
+  // Jahres-Register aus den vergangenen Perioden (plus laufendes Jahr).
+  const jahre = Array.from(
+    new Set(zeitraumListe(heute, 17).map((z) => zeitraumMonat(z).jahr)),
+  ).sort((a, b) => a - b);
+
+  // Monatskacheln je Jahr — bis einschließlich des aktuellen Abrechnungsmonats.
+  const kacheln: Record<number, MonatsKachel[]> = {};
+  for (const jahr of jahre) {
+    const bisMonat = jahr < aktuellMonat.jahr ? 12 : aktuellMonat.monat;
+    const arr: MonatsKachel[] = [];
+    for (let monat = 1; monat <= bisMonat; monat++) {
+      const z = zeitraumFuerMonat(jahr, monat);
+      arr.push({
+        monat,
+        key: z.key,
+        label: MONATE_KURZ[monat - 1],
+        aktuell: z.key === aktuell.key,
+      });
+    }
+    kacheln[jahr] = arr;
+  }
 
   return (
     <>
@@ -48,27 +78,15 @@ export default async function OrdnerPage({
         <div className="mb-4">
           <h1 className="text-lg font-semibold">{(sl as { name: string }).name}</h1>
           <p className="text-sm text-muted-foreground">
-            Monatsseiten (Abrechnungszeitraum 26.–25.)
+            Monatsseiten — Monat wählen (Abrechnungszeitraum jeweils 26.–25.)
           </p>
         </div>
-        <ul className="space-y-2">
-          {zeitraeume.map((z) => (
-            <li key={z.key}>
-              <Card className="p-0">
-                <Link
-                  href={`/stundennachweis/${params.sl}/${z.key}`}
-                  className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/60"
-                >
-                  <FileText className="size-4 text-muted-foreground" />
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                    {z.label}
-                  </span>
-                  <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-                </Link>
-              </Card>
-            </li>
-          ))}
-        </ul>
+        <OrdnerNavigation
+          slId={params.sl}
+          jahre={jahre}
+          defaultJahr={aktuellMonat.jahr}
+          kacheln={kacheln}
+        />
       </main>
     </>
   );

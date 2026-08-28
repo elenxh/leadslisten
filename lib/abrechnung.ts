@@ -341,3 +341,27 @@ export function rundeCalls(n: number): string {
 }
 
 export const WOCHENTAG_KURZ = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+
+export const MONATE = [
+  "Januar", "Februar", "März", "April", "Mai", "Juni",
+  "Juli", "August", "September", "Oktober", "November", "Dezember",
+];
+export const MONATE_KURZ = [
+  "Jan", "Feb", "Mär", "Apr", "Mai", "Jun",
+  "Jul", "Aug", "Sep", "Okt", "Nov", "Dez",
+];
+
+// Abrechnungsmonat eines Zeitraums = Endmonat (der 25.). Für Beschriftung mit
+// Monatsnamen statt sperrigem 26.–25.-Format.
+export function zeitraumMonat(z: Zeitraum): { jahr: number; monat: number } {
+  const [y, m] = z.endISO.split("-").map(Number);
+  return { jahr: y, monat: m }; // monat 1-basiert
+}
+export function monatName(z: Zeitraum): string {
+  const { jahr, monat } = zeitraumMonat(z);
+  return `${MONATE[monat - 1]} ${jahr}`;
+}
+// Zeitraum, dessen Abrechnungsmonat (jahr, monat) ist.
+export function zeitraumFuerMonat(jahr: number, monat: number): Zeitraum {
+  return zeitraumFuer(`${jahr}-${pad(monat)}-10`);
+}
