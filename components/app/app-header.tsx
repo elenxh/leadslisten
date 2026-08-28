@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ClipboardList, LogOut, ShieldCheck, Upload, Users } from "lucide-react";
+import { ClipboardList, FileUp, LogOut, ShieldCheck, Upload, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -42,6 +42,10 @@ export function AppHeader({ leitung }: { leitung: Leitung }) {
             <ClipboardList className="size-4 sm:mr-1.5" />
             <span className="hidden sm:inline">Team</span>
           </Button>
+          <Button variant="ghost" size="sm" render={<Link href="/import" />}>
+            <FileUp className="size-4 sm:mr-1.5" />
+            <span className="hidden sm:inline">Import</span>
+          </Button>
           {leitung.rolle === "admin" && (
             <Button variant="ghost" size="sm" render={<Link href="/admin/leitungen" />}>
               <Users className="size-4 sm:mr-1.5" />
@@ -51,7 +55,7 @@ export function AppHeader({ leitung }: { leitung: Leitung }) {
           {leitung.rolle === "admin" && (
             <Button variant="ghost" size="sm" render={<Link href="/admin/import" />}>
               <Upload className="size-4 sm:mr-1.5" />
-              <span className="hidden sm:inline">Import</span>
+              <span className="hidden sm:inline">Alt-Import</span>
             </Button>
           )}
           <DropdownMenu>
