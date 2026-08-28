@@ -104,7 +104,7 @@ export async function importTutorio(
   if (parsed.rows.length === 0) {
     return {
       ok: false,
-      error: "Keine Daten in den Reitern gefunden (Grundschule, Weiterführende, Gymnasium, Soziale Träger).",
+      error: "Keine Daten in den Reitern gefunden (Schulen, Soziale Träger).",
     };
   }
 
