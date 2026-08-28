@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { ringForTown } from "@/lib/berlin-ring";
 import { STATUS_VALUES } from "@/lib/status";
 import { ERGEBNIS_VALUES } from "@/lib/anruf";
+import { todayISO } from "@/lib/dates";
 import type { Standort } from "@/lib/types";
 
 export type SimpleResult = { ok: true } | { ok: false; error: string };
@@ -437,13 +438,28 @@ export async function updateMarkierung(
 // Zentrale Werteliste (lib/status.ts) – neue Status hier nicht duplizieren.
 const STATUS_ERLAUBT = STATUS_VALUES;
 
+// Status, die telefonischen Kontakt voraussetzen -> ein Direkt-Statuswechsel
+// erzeugt automatisch einen erfolgreichen Call. "Neu"/"Nicht erreichbar" nicht.
+const KONTAKT_STATUS: readonly string[] = STATUS_VALUES.filter(
+  (s) => s !== "Neu" && s !== "Nicht erreichbar",
+);
+
 /**
  * Setzt den Status einer Schule. Berechtigung wie bei der Schulart:
  * Admin immer, Leitung nur für Schulen an einem ihr zugeordneten Standort.
  */
+/**
+ * Setzt (oder bestätigt) den Status einer Schule über die Status-Auswahl.
+ * Erzeugt bei Kontakt-Status automatisch einen erfolgreichen Call
+ * (ergebnis='erreicht', typ='telefonat', heute), sofern die ausführende Person
+ * heute noch keinen erreicht-Eintrag für diese Schule hat (Tagessperre gegen
+ * Doppelzählung). Gleicher Status darf erneut bestätigt werden (Punkt 3).
+ * "Neu"/"Nicht erreichbar" lösen keinen Call aus.
+ */
 export async function updateStatus(
   schuleId: string,
   status: string,
+  notiz?: string | null,
 ): Promise<SimpleResult> {
   const user = await currentUser();
   if (!user) return { ok: false, error: "Nicht angemeldet." };
@@ -457,14 +473,90 @@ export async function updateStatus(
   const perm = await darfSchuleBearbeiten(ac.admin, user.id, user.isAdmin, schuleId);
   if (!perm.ok) return perm;
 
-  const { error } = await ac.admin
+  const { data: schule } = await ac.admin
     .from("schulen")
-    .update({ status })
-    .eq("id", schuleId);
+    .select("status, erstkontakt_am")
+    .eq("id", schuleId)
+    .single();
+  const alterStatus = (schule?.status as string | undefined) ?? null;
+  const istKontakt = KONTAKT_STATUS.includes(status);
+  const today = todayISO();
+
+  const upd: Record<string, unknown> = { status };
+  if (istKontakt && !schule?.erstkontakt_am) upd.erstkontakt_am = today;
+  const { error } = await ac.admin.from("schulen").update(upd).eq("id", schuleId);
   if (error) return { ok: false, error: error.message };
 
+  // Automatischer Call bei Kontakt-Status – mit Tagessperre.
+  if (istKontakt) {
+    const { data: heute } = await ac.admin
+      .from("anrufe")
+      .select("datum")
+      .eq("schule_id", schuleId)
+      .eq("leitung_id", user.id)
+      .eq("ergebnis", "erreicht");
+    const schonHeute = ((heute ?? []) as { datum: string }[]).some(
+      (r) => (r.datum ?? "").slice(0, 10) === today,
+    );
+    if (!schonHeute) {
+      const cleanNotiz = (notiz ?? "").trim();
+      const geaendert = alterStatus !== status;
+      const text =
+        cleanNotiz ||
+        (geaendert ? `Status geändert auf ${status}` : `Status bestätigt: ${status}`);
+      const { error: aErr } = await ac.admin.from("anrufe").insert({
+        schule_id: schuleId,
+        leitung_id: user.id,
+        datum: `${today}T12:00:00`,
+        typ: "telefonat",
+        ergebnis: "erreicht",
+        status_neu: null,
+        text,
+      });
+      if (aErr) return { ok: false, error: aErr.message };
+    }
+  }
+
+  await recomputeSchuleMarker(ac.admin, schuleId);
   revalidatePath("/dashboard");
   revalidatePath(`/schule/${schuleId}`);
+  return { ok: true };
+}
+
+/**
+ * Protokolliert einen Vor-Ort-Termin als eigenen Verlaufseintrag
+ * (typ='vor_ort', ergebnis=NULL). Zählt im Stundennachweis als Termin
+ * (60 Min + Soll-Gewicht), nie als "erreicht"-Call. Berechtigung wie Bearbeiten.
+ */
+export async function protokolliereVorOrtTermin(input: {
+  schuleId: string;
+  datum: string; // YYYY-MM-DD
+  notiz: string | null;
+}): Promise<SimpleResult> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: "Nicht angemeldet." };
+  const datum = (input.datum || "").slice(0, 10);
+  if (!datum) return { ok: false, error: "Datum ist erforderlich." };
+
+  const ac = adminClientOrError();
+  if (!ac.ok) return ac;
+  const perm = await darfSchuleBearbeiten(ac.admin, user.id, user.isAdmin, input.schuleId);
+  if (!perm.ok) return perm;
+
+  const { error } = await ac.admin.from("anrufe").insert({
+    schule_id: input.schuleId,
+    leitung_id: user.id,
+    datum: `${datum}T12:00:00`,
+    typ: "vor_ort",
+    ergebnis: null,
+    status_neu: null,
+    text: (input.notiz ?? "").trim() || null,
+  });
+  if (error) return { ok: false, error: error.message };
+
+  await recomputeSchuleMarker(ac.admin, input.schuleId);
+  revalidatePath("/dashboard");
+  revalidatePath(`/schule/${input.schuleId}`);
   return { ok: true };
 }
 

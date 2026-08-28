@@ -123,6 +123,58 @@ export interface Gespraechsprotokoll {
   updated_at: string;
 }
 
+// --- Stundennachweis / KPI ------------------------------------------
+export interface Vertragsmodell {
+  id: string;
+  name: string;
+  wochenstunden: number;
+  calls_soll_pro_woche: number;
+  aktiv: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LeitungVertrag {
+  id: string;
+  leitung_id: string;
+  vertragsmodell_id: string;
+  gilt_ab: string; // ISO date
+  created_at: string;
+}
+
+export type OrgaKategorie = "meeting_teamleitung" | "orga";
+
+export interface OrgaZeit {
+  id: string;
+  leitung_id: string;
+  datum: string; // ISO date
+  dauer_minuten: number;
+  kategorie: OrgaKategorie;
+  beschreibung: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Arbeitsstunde {
+  id: string;
+  leitung_id: string;
+  datum: string; // ISO date
+  von: string | null; // HH:MM(:SS)
+  bis: string | null;
+  minuten: number;
+  notiz: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MehrarbeitBestaetigung {
+  id: string;
+  leitung_id: string;
+  woche_start: string; // ISO date (Montag)
+  bestaetigt_von: string | null;
+  bestaetigt_am: string;
+}
+
 // A school joined with its responsible Leitung (for list/detail views).
 export type SchuleMitLeitung = Schule & {
   leitung: Pick<Leitung, "id" | "name" | "kuerzel" | "farbe"> | null;

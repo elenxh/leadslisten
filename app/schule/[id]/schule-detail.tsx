@@ -43,6 +43,7 @@ import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/components/app/status-badge";
 import { LeitungAvatar } from "@/components/app/leitung-avatar";
 import { AnrufDialog } from "@/components/app/anruf-dialog";
+import { VorOrtDialog } from "@/components/app/vor-ort-dialog";
 import { STATUS_LIST, anrufTypLabel } from "@/lib/status";
 import { SCHULART_OPTIONS } from "@/lib/schulart";
 import {
@@ -214,20 +215,24 @@ export function SchuleDetail({
     router.refresh();
   }
 
-  async function changeStatus(v: SchulStatus) {
-    const prev = statusVal;
-    setStatusVal(v);
+  // Optionale Notiz beim Status setzen/bestätigen (Punkt 2/3). Ein Kontakt-
+  // Status erzeugt serverseitig automatisch einen erfolgreichen Call.
+  const [statusNotiz, setStatusNotiz] = useState("");
+
+  async function speichereStatus() {
     setSavingStatus(true);
-    const res = await updateStatus(schule.id, v);
+    const res = await updateStatus(schule.id, statusVal, statusNotiz.trim() || null);
     setSavingStatus(false);
     if (!res.ok) {
-      setStatusVal(prev);
       toast.error("Status konnte nicht gespeichert werden", {
         description: res.error,
       });
       return;
     }
-    toast.success("Status aktualisiert");
+    setStatusNotiz("");
+    toast.success(
+      statusVal === schule.status ? "Status bestätigt" : "Status aktualisiert",
+    );
     router.refresh();
   }
 
@@ -500,7 +505,10 @@ export function SchuleDetail({
         <CardHeader className="flex flex-row items-center justify-between pb-3">
           <CardTitle className="text-base">Akquise</CardTitle>
           {canEditSchulart && (
-            <AnrufDialog schuleId={schule.id} leitungId={me.id} />
+            <span className="flex items-center gap-2">
+              <VorOrtDialog schuleId={schule.id} />
+              <AnrufDialog schuleId={schule.id} leitungId={me.id} />
+            </span>
           )}
         </CardHeader>
         <CardContent className="space-y-4">
@@ -514,26 +522,43 @@ export function SchuleDetail({
               )}
             </Label>
             {canEditSchulart ? (
-              <Select
-                value={statusVal}
-                onValueChange={(v) => changeStatus(v as SchulStatus)}
-                disabled={savingStatus}
-              >
-                <SelectTrigger className="w-full sm:max-w-xs">
-                  <SelectValue>
-                    {(v: string) =>
-                      STATUS_LIST.find((s) => s.value === v)?.label ?? v
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_LIST.map((s) => (
-                    <SelectItem key={s.value} value={s.value}>
-                      {s.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <Select
+                  value={statusVal}
+                  onValueChange={(v) => setStatusVal(v as SchulStatus)}
+                  disabled={savingStatus}
+                >
+                  <SelectTrigger className="w-full sm:max-w-xs" data-testid="status-select">
+                    <SelectValue>
+                      {(v: string) =>
+                        STATUS_LIST.find((s) => s.value === v)?.label ?? v
+                      }
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUS_LIST.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>
+                        {s.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  value={statusNotiz}
+                  onChange={(e) => setStatusNotiz(e.target.value)}
+                  placeholder="Optionale Notiz zum Kontakt (z. B. weiterhin keine Rückmeldung)"
+                  className="sm:max-w-md"
+                />
+                <div className="flex items-center gap-2">
+                  <Button size="sm" onClick={speichereStatus} disabled={savingStatus} data-testid="status-save">
+                    {savingStatus && <Loader2 className="mr-2 size-4 animate-spin" />}
+                    {statusVal === schule.status ? "Status bestätigen" : "Status speichern"}
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Kontakt-Status legt automatisch einen erfolgreichen Call an (max. 1×/Tag).
+                  </p>
+                </div>
+              </div>
             ) : (
               <StatusBadge status={statusVal} />
             )}
