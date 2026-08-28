@@ -54,9 +54,9 @@ export interface OrgaEintrag {
   id: string;
   datumISO: string;
   minuten: number;
-  kategorie: "meeting_teamleitung" | "orga";
+  kategorie: "meeting_teamleitung" | "orga" | "sl_meeting";
   beschreibung: string | null;
-  quelle?: "orga" | "protokoll"; // 'protokoll' = aus 1:1-Gesprächsprotokoll (read-only)
+  quelle?: "orga" | "protokoll" | "sl_meeting"; // read-only wenn nicht 'orga'
   refId?: string; // Protokoll-ID (für Link), wenn quelle='protokoll'
   dauerFehlt?: boolean; // Protokoll ohne Dauer -> zählt 0, Marker anzeigen
 }

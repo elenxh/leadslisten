@@ -316,6 +316,101 @@ export async function deleteArbeitsstunde(id: string): Promise<SimpleResult> {
   return { ok: true };
 }
 
+// ===================== SL-Meetings (nur Admin) =========================
+export interface SLMeetingInput {
+  datum: string; // YYYY-MM-DD
+  uhrzeit?: string | null; // HH:MM
+  dauer_minuten: number;
+  titel: string;
+  teilnehmer: string[]; // leitung_id[]
+}
+
+function validMeeting(f: SLMeetingInput): string | null {
+  if (!(f.datum || "").slice(0, 10)) return "Datum ist erforderlich.";
+  if (!(f.dauer_minuten > 0)) return "Dauer (Minuten) muss > 0 sein.";
+  if (!(f.titel || "").trim()) return "Titel ist erforderlich.";
+  if (!f.teilnehmer || f.teilnehmer.length === 0)
+    return "Mindestens eine Teilnehmerin wählen.";
+  return null;
+}
+
+export async function createSLMeeting(felder: SLMeetingInput): Promise<SimpleResult> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: "Nicht angemeldet." };
+  if (!user.isAdmin) return { ok: false, error: "Keine Berechtigung." };
+  const err = validMeeting(felder);
+  if (err) return { ok: false, error: err };
+  const ac = adminClientOrError();
+  if (!ac.ok) return ac;
+
+  const { data, error } = await ac.admin
+    .from("sl_meetings")
+    .insert({
+      datum: felder.datum.slice(0, 10),
+      uhrzeit: norm(felder.uhrzeit),
+      dauer_minuten: Math.round(felder.dauer_minuten),
+      titel: felder.titel.trim(),
+      created_by: user.id,
+    })
+    .select("id")
+    .single();
+  if (error) return { ok: false, error: error.message };
+
+  const meetingId = (data as { id: string }).id;
+  const rows = felder.teilnehmer.map((leitung_id) => ({ meeting_id: meetingId, leitung_id }));
+  const { error: tErr } = await ac.admin.from("sl_meeting_teilnehmer").insert(rows);
+  if (tErr) return { ok: false, error: tErr.message };
+
+  revalidatePath("/admin/sl-meetings");
+  revalidatePath("/stundennachweis");
+  return { ok: true };
+}
+
+export async function updateSLMeeting(id: string, felder: SLMeetingInput): Promise<SimpleResult> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: "Nicht angemeldet." };
+  if (!user.isAdmin) return { ok: false, error: "Keine Berechtigung." };
+  const err = validMeeting(felder);
+  if (err) return { ok: false, error: err };
+  const ac = adminClientOrError();
+  if (!ac.ok) return ac;
+
+  const { error } = await ac.admin
+    .from("sl_meetings")
+    .update({
+      datum: felder.datum.slice(0, 10),
+      uhrzeit: norm(felder.uhrzeit),
+      dauer_minuten: Math.round(felder.dauer_minuten),
+      titel: felder.titel.trim(),
+    })
+    .eq("id", id);
+  if (error) return { ok: false, error: error.message };
+
+  // Teilnehmer neu setzen (löschen + einfügen).
+  const { error: dErr } = await ac.admin.from("sl_meeting_teilnehmer").delete().eq("meeting_id", id);
+  if (dErr) return { ok: false, error: dErr.message };
+  const rows = felder.teilnehmer.map((leitung_id) => ({ meeting_id: id, leitung_id }));
+  const { error: iErr } = await ac.admin.from("sl_meeting_teilnehmer").insert(rows);
+  if (iErr) return { ok: false, error: iErr.message };
+
+  revalidatePath("/admin/sl-meetings");
+  revalidatePath("/stundennachweis");
+  return { ok: true };
+}
+
+export async function deleteSLMeeting(id: string): Promise<SimpleResult> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: "Nicht angemeldet." };
+  if (!user.isAdmin) return { ok: false, error: "Keine Berechtigung." };
+  const ac = adminClientOrError();
+  if (!ac.ok) return ac;
+  const { error } = await ac.admin.from("sl_meetings").delete().eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/admin/sl-meetings");
+  revalidatePath("/stundennachweis");
+  return { ok: true };
+}
+
 // ===================== Tages-Notiz der SL (self oder Admin) ============
 export async function setTagNotiz(input: {
   leitungId: string;

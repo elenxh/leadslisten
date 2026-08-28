@@ -177,6 +177,17 @@ export interface TagNotiz {
   updated_at: string;
 }
 
+export interface SLMeeting {
+  id: string;
+  datum: string; // ISO date
+  uhrzeit: string | null;
+  dauer_minuten: number;
+  titel: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export type AdminKommentarFarbe = "rot" | "gelb" | "gruen";
 
 export interface AdminKommentar {
