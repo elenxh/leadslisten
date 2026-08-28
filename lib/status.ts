@@ -74,7 +74,7 @@ export function statusLabel(status: string): string {
 export const ANRUF_TYP_LIST: { value: AnrufTyp; label: string }[] = [
   { value: "telefonat", label: "Telefonat" },
   { value: "mail", label: "E-Mail" },
-  { value: "vor_ort", label: "Vor Ort" },
+  { value: "vor_ort", label: "Vor-Ort-Termin" },
   { value: "sonstiges", label: "Sonstiges" },
 ];
 

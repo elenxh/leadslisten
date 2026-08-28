@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ClipboardList, FileUp, LogOut, ShieldCheck, Upload, Users } from "lucide-react";
+import { ClipboardList, Clock, FileUp, LogOut, ShieldCheck, Upload, Users, Wallet } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -42,10 +42,20 @@ export function AppHeader({ leitung }: { leitung: Leitung }) {
             <ClipboardList className="size-4 sm:mr-1.5" />
             <span className="hidden sm:inline">Team</span>
           </Button>
+          <Button variant="ghost" size="sm" render={<Link href="/stundennachweis" />}>
+            <Clock className="size-4 sm:mr-1.5" />
+            <span className="hidden sm:inline">Stundennachweis</span>
+          </Button>
           <Button variant="ghost" size="sm" render={<Link href="/import" />}>
             <FileUp className="size-4 sm:mr-1.5" />
             <span className="hidden sm:inline">Import</span>
           </Button>
+          {leitung.rolle === "admin" && (
+            <Button variant="ghost" size="sm" render={<Link href="/admin/vertragsmodelle" />}>
+              <Wallet className="size-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">Verträge</span>
+            </Button>
+          )}
           {leitung.rolle === "admin" && (
             <Button variant="ghost" size="sm" render={<Link href="/admin/leitungen" />}>
               <Users className="size-4 sm:mr-1.5" />
