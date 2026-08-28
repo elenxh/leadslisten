@@ -184,9 +184,20 @@ export function terminInCalls(m: Vertragsmodell): number {
 }
 
 // ---- Auswertung -------------------------------------------------------
+export interface TagAuswertung {
+  datumISO: string;
+  wochentag: number; // 1=Mo … 7=So
+  calls: CallEintrag[];
+  termine: TerminEintrag[];
+  orga: OrgaEintrag[];
+  stunden: StundenEintrag[];
+  imZeitraum: boolean; // Kalendertag innerhalb [start, ende]?
+}
+
 export interface WochenAuswertung {
   woche: Woche;
   modell: Vertragsmodell | null;
+  tage: TagAuswertung[]; // 7 Tage Mo–So (Kalenderblatt)
   calls: CallEintrag[];
   termine: TerminEintrag[];
   orga: OrgaEintrag[];
@@ -237,6 +248,21 @@ export function auswerten(input: {
     const stunden = input.stunden.filter((s) => inW(s.datumISO));
     const modell = modellAmTag(zuweisungen, modelle, w.montagISO);
 
+    // Kalenderzeilen Mo–So.
+    const tage: TagAuswertung[] = [];
+    for (let i = 0; i < 7; i++) {
+      const d = addDaysISO(w.montagISO, i);
+      tage.push({
+        datumISO: d,
+        wochentag: i + 1,
+        calls: calls.filter((c) => c.datumISO === d),
+        termine: termine.filter((t) => t.datumISO === d),
+        orga: orga.filter((o) => o.datumISO === d),
+        stunden: stunden.filter((st) => st.datumISO === d),
+        imZeitraum: inRange(d, zeitraum.startISO, zeitraum.endISO),
+      });
+    }
+
     const sollCalls = modell ? modell.calls_soll_pro_woche : null;
     const istCallAequivalent =
       calls.length + (modell ? termine.length * terminInCalls(modell) : 0);
@@ -254,6 +280,7 @@ export function auswerten(input: {
     return {
       woche: w,
       modell,
+      tage,
       calls,
       termine,
       orga,
@@ -309,3 +336,5 @@ export function stundenAusMinuten(min: number): string {
 export function rundeCalls(n: number): string {
   return n.toLocaleString("de-DE", { maximumFractionDigits: 1 });
 }
+
+export const WOCHENTAG_KURZ = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];

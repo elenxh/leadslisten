@@ -167,6 +167,29 @@ export interface Arbeitsstunde {
   updated_at: string;
 }
 
+export interface TagNotiz {
+  id: string;
+  leitung_id: string;
+  datum: string; // ISO date
+  notiz: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type AdminKommentarFarbe = "rot" | "gelb" | "gruen";
+
+export interface AdminKommentar {
+  id: string;
+  leitung_id: string;
+  zeitraum_start: string; // ISO date (der 26.)
+  datum: string | null; // null = seitenweit
+  kommentar: string | null;
+  farbe: AdminKommentarFarbe | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface MehrarbeitBestaetigung {
   id: string;
   leitung_id: string;
