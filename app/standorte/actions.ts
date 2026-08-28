@@ -604,6 +604,7 @@ export interface SchuleFelder {
   erstkontakt_am?: string | null;
   wiedervorlage_am?: string | null;
   akquise_notiz?: string | null;
+  notiz_original?: string | null; // Ursprungsnotiz (Import-Rohtext), frei editierbar
   zustaendig?: string | null; // nur Admin
   standort_id?: string | null; // nur Admin
 }
@@ -663,6 +664,10 @@ export async function updateSchuleFelder(
     update.wiedervorlage_am = felder.wiedervorlage_am || null;
   if (felder.akquise_notiz !== undefined)
     update.akquise_notiz = (felder.akquise_notiz ?? "").trim() || null;
+  // Ursprungsnotiz frei editier-/leerbar. NUR notiz_original – das Backup
+  // notiz_original_backup (0013) wird hier bewusst NIE angefasst.
+  if (felder.notiz_original !== undefined)
+    update.notiz_original = (felder.notiz_original ?? "").trim() || null;
 
   // NUR Admin darf Zuständigkeit/Standort ändern.
   if (user.isAdmin) {
