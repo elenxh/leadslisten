@@ -58,7 +58,6 @@ export default async function MonatPage({
     { data: stundenData },
     { data: vertragData },
     { data: modelleData },
-    { data: mehrarbeitData },
     { data: tagNotizData },
   ] = await Promise.all([
     supabase
@@ -72,7 +71,6 @@ export default async function MonatPage({
     supabase.from("arbeitsstunden").select("*").eq("leitung_id", targetId).gte("datum", rangeStart).lte("datum", rangeEnd),
     supabase.from("leitung_vertrag").select("vertragsmodell_id, gilt_ab").eq("leitung_id", targetId),
     supabase.from("vertragsmodelle").select("*").order("name"),
-    supabase.from("mehrarbeit_bestaetigung").select("woche_start").eq("leitung_id", targetId),
     supabase.from("tag_notizen").select("datum, notiz").eq("leitung_id", targetId).gte("datum", rangeStart).lte("datum", rangeEnd),
   ]);
 
@@ -126,7 +124,6 @@ export default async function MonatPage({
     stunden,
   });
 
-  const bestaetigtWochen = ((mehrarbeitData ?? []) as { woche_start: string }[]).map((r) => r.woche_start);
   const tagNotizen = ((tagNotizData ?? []) as { datum: string; notiz: string | null }[]).map((t) => ({
     datum: t.datum.slice(0, 10),
     notiz: t.notiz,
@@ -142,7 +139,6 @@ export default async function MonatPage({
         zeitraumStart={zeitraum.startISO}
         zeitraumLabel={zeitraum.label}
         auswertung={auswertung}
-        bestaetigtWochen={bestaetigtWochen}
         tagNotizen={tagNotizen}
         adminKommentare={adminKommentare.map((k) => ({
           datum: k.datum,
