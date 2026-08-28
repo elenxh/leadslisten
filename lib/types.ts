@@ -97,6 +97,32 @@ export interface Anruf {
   text: string | null;
 }
 
+// 1:1-Gesprächsprotokoll einer Standortleitung (an die Person gekoppelt).
+export type ProtokollAmpel = "gruen" | "gelb" | "rot";
+
+// Eine Zeile der "Nächste Schritte"-Tabelle (als jsonb im Protokoll gespeichert).
+export interface ProtokollSchritt {
+  was: string;
+  wer: string;
+  bis_wann: string;
+}
+
+export interface Gespraechsprotokoll {
+  id: string;
+  leitung_id: string;
+  datum: string; // ISO date (YYYY-MM-DD)
+  uhrzeit: string | null; // "HH:MM"
+  thema: string | null;
+  inhalt: string | null;
+  ergebnis: string | null;
+  naechste_schritte: string | null; // Freitext
+  schritte: ProtokollSchritt[]; // Tabelle Was/Wer/Bis wann
+  wiedervorlage_am: string | null; // ISO date
+  ampel: ProtokollAmpel | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // A school joined with its responsible Leitung (for list/detail views).
 export type SchuleMitLeitung = Schule & {
   leitung: Pick<Leitung, "id" | "name" | "kuerzel" | "farbe"> | null;

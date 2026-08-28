@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { LogOut, ShieldCheck, Upload, Users } from "lucide-react";
+import { ClipboardList, LogOut, ShieldCheck, Upload, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -38,6 +38,10 @@ export function AppHeader({ leitung }: { leitung: Leitung }) {
         </Link>
 
         <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" render={<Link href="/team" />}>
+            <ClipboardList className="size-4 sm:mr-1.5" />
+            <span className="hidden sm:inline">Team</span>
+          </Button>
           {leitung.rolle === "admin" && (
             <Button variant="ghost" size="sm" render={<Link href="/admin/leitungen" />}>
               <Users className="size-4 sm:mr-1.5" />
