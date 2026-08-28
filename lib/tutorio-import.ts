@@ -48,6 +48,25 @@ function cellStr(v: unknown): string | null {
   return s.length ? s : null;
 }
 
+// Konvention der bestehenden 119 Berliner Träger (vgl. Migration 0004): sie
+// stehen mit typ='traeger' und schulart='Träger' in der Tabelle. Der Träger-
+// Reiter hat keine Schulart-Spalte -> wir setzen denselben Wert (schulart ist
+// in der DB NOT NULL). istTraegerSchulart('Träger') erkennt das auch im Dashboard.
+export const TRAEGER_SCHULART = "Träger";
+
+// Platzhalter aus den Beispielzeilen der Vorlage (Zeile 4). Zeilen mit einem
+// dieser Tokens in Name/Ansprechpartner/E-Mail/Homepage werden als Beispiel
+// erkannt und beim Import übersprungen (SLs lassen die Beispielzeile oft stehen).
+const BEISPIEL_TOKENS = ["muster", "beispiel", "example"];
+
+function istBeispielZeile(felder: (string | null)[]): boolean {
+  return felder.some((v) => {
+    if (!v) return false;
+    const n = norm(v);
+    return BEISPIEL_TOKENS.some((t) => n.includes(t));
+  });
+}
+
 // Reiter-Klassifikation: welche der 4 Daten-Reiter (oder ignorieren).
 function classifySheet(
   sheetName: string,
@@ -197,6 +216,13 @@ export function parseTutorioWorkbook(buf: ArrayBuffer): ParsedTutorio {
       const anyValue = Object.values(vals).some((v) => v != null);
       if (!anyValue) continue;
 
+      // Stehengelassene Beispielzeile der Vorlage überspringen (kein Fehler,
+      // keine Daten). Sonst würde z. B. der Träger-Beispieleintrag ohne Schulart
+      // den Import sprengen.
+      if (istBeispielZeile([vals.name, vals.ansprechpartner, vals.mail, vals.homepage])) {
+        continue;
+      }
+
       const excelRow = i + 1; // 1-basiert
 
       // Pflichtfelder prüfen – ALLE fehlenden sammeln.
@@ -253,7 +279,9 @@ export function tutorioInsertData(
   const { stadt, ring } = deriveOrtUndRing(row.bezirk);
   return {
     name: row.name.trim(),
-    schulart: row.schulart,
+    // schulart ist NOT NULL. Schul-Reiter: geprüfter Wert; Träger-Reiter (ohne
+    // Schulart-Spalte): Konventionswert 'Träger' wie die bestehenden Berliner Träger.
+    schulart: row.typ === "traeger" ? TRAEGER_SCHULART : row.schulart,
     bezirk: row.bezirk,
     stadt,
     ring,
