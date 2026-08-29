@@ -6,6 +6,7 @@ import {
   modellAmTag,
   wochenImZeitraum,
   type CallEintrag,
+  type EmailEintrag,
   type OrgaEintrag,
   type StundenEintrag,
   type TerminEintrag,
@@ -33,6 +34,7 @@ export function ladeBereich(zeitraum: Zeitraum): { rangeStart: string; rangeEnd:
 export interface EintragBundle {
   calls: CallEintrag[];
   termine: TerminEintrag[];
+  emails: EmailEintrag[];
   orga: OrgaEintrag[];
   stunden: StundenEintrag[];
 }
@@ -78,6 +80,9 @@ export async function sammleEintraege(
   const termine: TerminEintrag[] = anrufe
     .filter((a) => a.typ === "vor_ort")
     .map((a) => ({ id: a.id, datumISO: a.datum.slice(0, 10), schuleName: a.schule?.name ?? null, notiz: a.text }));
+  const emails: EmailEintrag[] = anrufe
+    .filter((a) => a.typ === "mail")
+    .map((a) => ({ id: a.id, datumISO: a.datum.slice(0, 10), schuleName: a.schule?.name ?? null, notiz: a.text }));
 
   type OrgaRow = { id: string; datum: string; dauer_minuten: number; kategorie: "meeting_teamleitung" | "orga"; beschreibung: string | null };
   const orgaEcht: OrgaEintrag[] = ((orgaData ?? []) as OrgaRow[]).map((o) => ({
@@ -101,7 +106,7 @@ export async function sammleEintraege(
     id: s.id, datumISO: s.datum.slice(0, 10), minuten: s.minuten, notiz: s.notiz,
   }));
 
-  return { calls, termine, orga: [...orgaEcht, ...protokollMeetings, ...slMeetings], stunden };
+  return { calls, termine, emails, orga: [...orgaEcht, ...protokollMeetings, ...slMeetings], stunden };
 }
 
 const istMeeting = (kat: string) => kat === "meeting_teamleitung" || kat === "sl_meeting";
@@ -111,6 +116,7 @@ export interface UebersichtWoche {
   montagISO: string;
   termine: number;
   calls: number;
+  emails: number;
   orgaMin: number;
   meetingMin: number;
 }
@@ -121,6 +127,7 @@ export interface UebersichtZeile {
   modellName: string | null;
   callsCount: number;
   termineCount: number;
+  emailsCount: number;
   meetingMin: number;
   orgaMin: number;
   berechneteMin: number;
@@ -140,7 +147,7 @@ export function baueAbrechnungAOA(
     [],
     [
       "SL", "Standort(e)", "Vertragsmodell",
-      "Erfolgreiche Calls", "Vor-Ort-Termine",
+      "Erfolgreiche Calls", "Vor-Ort-Termine", "E-Mails",
       "Meeting-Minuten (1:1 + SL-Meetings)", "Orga-Minuten",
       "Berechnete Stunden", "Angegebene Stunden", "Mehrarbeit-Calls",
     ],
@@ -150,6 +157,7 @@ export function baueAbrechnungAOA(
       z.modellName ?? "",
       z.callsCount,
       z.termineCount,
+      z.emailsCount,
       z.meetingMin,
       z.orgaMin,
       std(z.berechneteMin),
@@ -158,11 +166,11 @@ export function baueAbrechnungAOA(
     ]),
   ];
   const wochen: (string | number)[][] = [
-    ["SL", "Kalenderwoche", "Termine", "Calls", "Orga-Minuten", "Meeting-Minuten"],
+    ["SL", "Kalenderwoche", "Termine", "Calls", "E-Mails", "Orga-Minuten", "Meeting-Minuten"],
   ];
   for (const z of zeilen) {
     for (const w of z.wochen) {
-      wochen.push([z.slName, w.label, w.termine, w.calls, w.orgaMin, w.meetingMin]);
+      wochen.push([z.slName, w.label, w.termine, w.calls, w.emails, w.orgaMin, w.meetingMin]);
     }
   }
   return { uebersicht, wochen };
@@ -209,6 +217,7 @@ export async function ladeUebersicht(
         montagISO: w.woche.montagISO,
         termine: w.termine.length,
         calls: w.calls.length,
+        emails: w.emails.length,
         orgaMin: w.orga.filter((o) => o.kategorie === "orga").reduce((n, o) => n + o.minuten, 0),
         meetingMin: w.orga.filter((o) => istMeeting(o.kategorie)).reduce((n, o) => n + o.minuten, 0),
       }));
@@ -220,6 +229,7 @@ export async function ladeUebersicht(
         modellName: modell?.name ?? null,
         callsCount: a.summe.callsCount,
         termineCount: a.summe.termineCount,
+        emailsCount: a.summe.emailsCount,
         meetingMin,
         orgaMin,
         berechneteMin: a.summe.berechneteMinuten,

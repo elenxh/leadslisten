@@ -165,6 +165,7 @@ export function MonatClient({
               <p className="font-medium">Zeitraum-Summe (26.–25.)</p>
               <Row label={`Calls (${s.callsCount})`} value={`${stundenAusMinuten(s.callMinuten)} h`} />
               <Row label={`Vor-Ort-Termine (${s.termineCount})`} value={`${stundenAusMinuten(s.terminMinuten)} h`} />
+              <Row label="E-Mails" value={`${s.emailsCount}`} />
               {s.orgaNachKategorie.map((o) => (
                 <Row key={o.kategorie} label={KAT_LABEL[o.kategorie] ?? o.kategorie} value={`${stundenAusMinuten(o.minuten)} h`} />
               ))}
@@ -307,7 +308,7 @@ function WochenBlock({
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-medium">KW {w.woche.label}</span>
           <span className="block text-xs text-muted-foreground">
-            {w.calls.length} Calls · {w.termine.length} Termine ·{" "}
+            {w.calls.length} Calls · {w.termine.length} Termine · E-Mails: {w.emails.length} ·{" "}
             {w.sollCalls == null ? "kein Vertragsmodell" : (<>Soll {rundeCalls(w.istCallAequivalent)}/{rundeCalls(w.sollCalls)} {w.erfuellt ? "✓" : "✗"}</>)}
             {" "}· ber. {stundenAusMinuten(w.berechneteMinuten)} h · ang. {stundenAusMinuten(w.angegebeneMinuten)} h
           </span>
@@ -357,7 +358,7 @@ function TagZeile({
   kommentar: KommentarInfo | null;
 }) {
   const [, d2, d3] = t.datumISO.split("-");
-  const leer = t.calls.length + t.termine.length + t.orga.length + t.stunden.length === 0;
+  const leer = t.calls.length + t.termine.length + t.emails.length + t.orga.length + t.stunden.length === 0;
   return (
     <div id={`tag-${t.datumISO}`} className={cn("flex scroll-mt-20 gap-3 px-4 py-2", !t.imZeitraum && "opacity-60")}>
       <div className="w-14 shrink-0 pt-0.5 text-xs">
@@ -376,6 +377,12 @@ function TagZeile({
           <p key={tm.id} className="truncate">
             <span className="text-blue-600 dark:text-blue-400">◆ Vor-Ort</span> {tm.schuleName ?? "—"}
             {tm.notiz ? <span className="text-muted-foreground"> · {tm.notiz}</span> : null}
+          </p>
+        ))}
+        {t.emails.map((em) => (
+          <p key={em.id} className="truncate">
+            <span className="text-cyan-600 dark:text-cyan-400">✉ E-Mail</span> {em.schuleName ?? "—"}
+            {em.notiz ? <span className="text-muted-foreground"> · {em.notiz}</span> : null}
           </p>
         ))}
         {t.orga.map((o) =>

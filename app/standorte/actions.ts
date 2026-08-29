@@ -8,6 +8,7 @@ import { ringForTown } from "@/lib/berlin-ring";
 import { STATUS_VALUES } from "@/lib/status";
 import { ERGEBNIS_VALUES } from "@/lib/anruf";
 import { todayISO } from "@/lib/dates";
+import { SCHUL_MAIL_CC } from "@/lib/config";
 import type { Standort } from "@/lib/types";
 
 export type SimpleResult = { ok: true } | { ok: false; error: string };
@@ -654,6 +655,42 @@ export async function protokolliereVorOrtTermin(input: {
     ergebnis: null,
     status_neu: null,
     text: (input.notiz ?? "").trim() || null,
+  });
+  if (error) return { ok: false, error: error.message };
+
+  await recomputeSchuleMarker(ac.admin, input.schuleId);
+  revalidatePath("/dashboard");
+  revalidatePath(`/schule/${input.schuleId}`);
+  return { ok: true };
+}
+
+/**
+ * Protokolliert eine an die Schule versendete E-Mail als eigenen
+ * Verlaufseintrag (typ='mail', ergebnis=NULL) — ausgelöst vom „E-Mail (CC)"-
+ * Button. Zählt im Stundennachweis als E-Mail (reine Zählung, keine Vergütung).
+ * Berechtigung wie Bearbeiten.
+ */
+export async function protokolliereEmail(input: {
+  schuleId: string;
+  notiz?: string | null;
+}): Promise<SimpleResult> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: "Nicht angemeldet." };
+
+  const ac = adminClientOrError();
+  if (!ac.ok) return ac;
+  const perm = await darfSchuleBearbeiten(ac.admin, user.id, user.isAdmin, input.schuleId);
+  if (!perm.ok) return perm;
+
+  const today = todayISO();
+  const { error } = await ac.admin.from("anrufe").insert({
+    schule_id: input.schuleId,
+    leitung_id: user.id,
+    datum: `${today}T12:00:00`,
+    typ: "mail",
+    ergebnis: null,
+    status_neu: null,
+    text: (input.notiz ?? "").trim() || `E-Mail an die Schule (CC ${SCHUL_MAIL_CC})`,
   });
   if (error) return { ok: false, error: error.message };
 

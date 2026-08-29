@@ -197,6 +197,18 @@ export interface Broadcast {
   created_at: string;
 }
 
+export interface RessourcenLink {
+  id: string;
+  titel: string;
+  url: string;
+  beschreibung: string | null;
+  sortierung: number;
+  aktiv: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export type AdminKommentarFarbe = "rot" | "gelb" | "gruen";
 
 export interface AdminKommentar {
