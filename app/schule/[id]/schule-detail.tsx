@@ -61,6 +61,7 @@ import { VerlaufEintragActions } from "@/components/app/verlauf-eintrag-actions"
 import { ergebnisMeta } from "@/lib/anruf";
 import { KontakteSection } from "@/components/app/kontakte-section";
 import { readSchulOrder } from "@/lib/schul-order";
+import { SCHUL_MAIL_CC } from "@/lib/config";
 import { ringLabel } from "@/lib/berlin-ring";
 import { formatDate, formatDateTime, plusTageISO } from "@/lib/dates";
 import { cn } from "@/lib/utils";
@@ -493,21 +494,50 @@ export function SchuleDetail({
               {/* a) Status – wird erst beim Speichern übernommen. */}
               <div className="space-y-2">
                 <Label>Status</Label>
-                <Select
-                  value={statusVal}
-                  onValueChange={(v) => setStatusVal(v as SchulStatus)}
-                >
-                  <SelectTrigger className="w-full sm:max-w-xs" data-testid="status-select">
-                    <SelectValue>
-                      {(v: string) => STATUS_LIST.find((s) => s.value === v)?.label ?? v}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STATUS_LIST.map((s) => (
-                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Select
+                    value={statusVal}
+                    onValueChange={(v) => setStatusVal(v as SchulStatus)}
+                  >
+                    <SelectTrigger className="w-full sm:max-w-xs" data-testid="status-select">
+                      <SelectValue>
+                        {(v: string) => STATUS_LIST.find((s) => s.value === v)?.label ?? v}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {STATUS_LIST.map((s) => (
+                        <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {schule.mail ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      data-testid="email-cc"
+                      render={
+                        <a
+                          href={`mailto:${schule.mail}?cc=${encodeURIComponent(SCHUL_MAIL_CC)}&subject=${encodeURIComponent(schule.name)}`}
+                        />
+                      }
+                    >
+                      <Mail className="mr-1.5 size-4" />
+                      E-Mail (CC)
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled
+                      title="Keine E-Mail-Adresse hinterlegt"
+                    >
+                      <Mail className="mr-1.5 size-4" />
+                      E-Mail (CC)
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {/* b) Großes Notizfeld -> Text des Auto-Call-Verlaufseintrags. */}
@@ -521,11 +551,6 @@ export function SchuleDetail({
                   placeholder="Was war beim Kontakt? Wird beim Speichern als Text des Call-Eintrags übernommen…"
                   data-testid="call-notiz"
                 />
-                <p className="text-xs text-muted-foreground">
-                  Ein Kontakt-Status (nicht „Neu“/„Nicht erreichbar“) legt beim Speichern
-                  automatisch einen erfolgreichen Call an — max. 1×/Tag; derselbe Status gilt
-                  als Bestätigung.
-                </p>
               </div>
 
               {/* c) Wiedervorlage – prominent mit Schnellwahl. */}

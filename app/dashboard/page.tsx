@@ -4,6 +4,7 @@ import { AppHeader } from "@/components/app/app-header";
 import { requireLeitung } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type {
+  Broadcast,
   FarbLegende,
   Leitung,
   SchuleMitLeitung,
@@ -90,6 +91,13 @@ export default async function DashboardPage() {
     "standort_id" | "farbe" | "bezeichnung"
   >[];
 
+  // Broadcast-Infos (neueste zuerst). RLS: für alle lesbar.
+  const { data: broadcastRows } = await supabase
+    .from("broadcasts")
+    .select("id, nachricht, created_by, created_at")
+    .order("created_at", { ascending: false });
+  const broadcasts = (broadcastRows ?? []) as Broadcast[];
+
   return (
     <>
       <AppHeader leitung={me} />
@@ -105,6 +113,7 @@ export default async function DashboardPage() {
           vorgeschlagen={vorgeschlagen}
           leitungen={leitungen}
           farbLegende={farbLegende}
+          broadcasts={broadcasts}
         />
       )}
     </>
