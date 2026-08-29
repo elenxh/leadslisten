@@ -322,6 +322,8 @@ export interface SLMeetingInput {
   uhrzeit?: string | null; // HH:MM
   dauer_minuten: number;
   titel: string;
+  call_link?: string | null;
+  notizen?: string | null;
   teilnehmer: string[]; // leitung_id[]
 }
 
@@ -350,6 +352,8 @@ export async function createSLMeeting(felder: SLMeetingInput): Promise<SimpleRes
       uhrzeit: norm(felder.uhrzeit),
       dauer_minuten: Math.round(felder.dauer_minuten),
       titel: felder.titel.trim(),
+      call_link: norm(felder.call_link),
+      notizen: norm(felder.notizen),
       created_by: user.id,
     })
     .select("id")
@@ -382,6 +386,8 @@ export async function updateSLMeeting(id: string, felder: SLMeetingInput): Promi
       uhrzeit: norm(felder.uhrzeit),
       dauer_minuten: Math.round(felder.dauer_minuten),
       titel: felder.titel.trim(),
+      call_link: norm(felder.call_link),
+      notizen: norm(felder.notizen),
     })
     .eq("id", id);
   if (error) return { ok: false, error: error.message };

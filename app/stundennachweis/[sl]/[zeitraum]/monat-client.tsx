@@ -102,43 +102,33 @@ export function MonatClient({
   const s = auswertung.summe;
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-6">
-      <div className="flex flex-col-reverse gap-6 lg:flex-row lg:items-start">
+    <div className="flex flex-col-reverse gap-6 lg:flex-row lg:items-start">
         <div className="min-w-0 flex-1 space-y-5">
-          <div>
-            <Link
-              href={`/stundennachweis/${slId}`}
-              className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              className="shrink-0"
+              aria-label="Voriger Monat"
+              render={<Link href={`/stundennachweis/${slId}?zeitraum=${prevKey}`} scroll={false} />}
             >
               <ChevronLeft className="size-4" />
-              {slName} — Übersicht
-            </Link>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="icon"
-                className="shrink-0"
-                aria-label="Voriger Monat"
-                render={<Link href={`/stundennachweis/${slId}/${prevKey}`} />}
-              >
-                <ChevronLeft className="size-4" />
-              </Button>
-              <div className="min-w-0 flex-1">
-                <h1 className="truncate text-xl font-semibold">{monatTitel}</h1>
-                <p className="text-xs text-muted-foreground">
-                  {slName} · Abrechnungszeitraum {zeitraumLabel}
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="icon"
-                className="shrink-0"
-                aria-label="Nächster Monat"
-                render={<Link href={`/stundennachweis/${slId}/${nextKey}`} />}
-              >
-                <ChevronRight className="size-4" />
-              </Button>
+            </Button>
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate text-xl font-semibold">{monatTitel}</h1>
+              <p className="text-xs text-muted-foreground">
+                {slName} · Abrechnungszeitraum {zeitraumLabel}
+              </p>
             </div>
+            <Button
+              variant="outline"
+              size="icon"
+              className="shrink-0"
+              aria-label="Nächster Monat"
+              render={<Link href={`/stundennachweis/${slId}?zeitraum=${nextKey}`} scroll={false} />}
+            >
+              <ChevronRight className="size-4" />
+            </Button>
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -198,8 +188,7 @@ export function MonatClient({
             zeitraumLabel={zeitraumLabel}
           />
         </aside>
-      </div>
-    </main>
+    </div>
   );
 }
 

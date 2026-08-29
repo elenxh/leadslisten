@@ -183,9 +183,18 @@ export interface SLMeeting {
   uhrzeit: string | null;
   dauer_minuten: number;
   titel: string;
+  call_link: string | null;
+  notizen: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface Broadcast {
+  id: string;
+  nachricht: string;
+  created_by: string | null;
+  created_at: string;
 }
 
 export type AdminKommentarFarbe = "rot" | "gelb" | "gruen";

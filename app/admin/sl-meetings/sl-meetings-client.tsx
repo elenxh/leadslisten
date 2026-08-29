@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -65,6 +66,19 @@ export function SLMeetingsClient({
                 <p className="mt-1 text-xs text-muted-foreground">
                   {m.teilnehmer.length > 0 ? m.teilnehmer.map(nameOf).join(", ") : "keine Teilnehmerinnen"}
                 </p>
+                {m.call_link && (
+                  <a
+                    href={m.call_link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-1 inline-block truncate text-xs text-primary hover:underline"
+                  >
+                    {m.call_link}
+                  </a>
+                )}
+                {m.notizen && (
+                  <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{m.notizen}</p>
+                )}
               </div>
               <span className="flex shrink-0 gap-1">
                 <MeetingDialog sls={sls} meeting={m} />
@@ -117,6 +131,8 @@ function MeetingDialog({
   const [uhrzeit, setUhrzeit] = useState(meeting?.uhrzeit ?? "");
   const [dauer, setDauer] = useState(String(meeting?.dauer_minuten ?? ""));
   const [titel, setTitel] = useState(meeting?.titel ?? "");
+  const [callLink, setCallLink] = useState(meeting?.call_link ?? "");
+  const [notizen, setNotizen] = useState(meeting?.notizen ?? "");
   const [teilnehmer, setTeilnehmer] = useState<string[]>(meeting?.teilnehmer ?? []);
 
   function save() {
@@ -125,6 +141,8 @@ function MeetingDialog({
       uhrzeit: uhrzeit || null,
       dauer_minuten: Number(dauer),
       titel,
+      call_link: callLink || null,
+      notizen: notizen || null,
       teilnehmer,
     };
     start(async () => {
@@ -174,6 +192,26 @@ function MeetingDialog({
           <div className="space-y-1.5">
             <Label>Titel</Label>
             <Input value={titel} onChange={(e) => setTitel(e.target.value)} placeholder="z. B. SL-Runde" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Link zum Call (optional)</Label>
+            <Input
+              type="url"
+              value={callLink}
+              onChange={(e) => setCallLink(e.target.value)}
+              placeholder="https://…"
+              data-testid="meeting-link"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Notizen (optional, auch nachträglich)</Label>
+            <Textarea
+              rows={2}
+              value={notizen}
+              onChange={(e) => setNotizen(e.target.value)}
+              placeholder="Infos für die Teilnehmerinnen…"
+              data-testid="meeting-notizen"
+            />
           </div>
           <div className="space-y-1.5">
             <Label>Teilnehmerinnen</Label>

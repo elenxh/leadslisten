@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { CalendarDays, ClipboardList, Clock, FileSpreadsheet, FileUp, LogOut, ShieldCheck, Upload, Users, Wallet } from "lucide-react";
@@ -19,6 +20,41 @@ import type { Leitung } from "@/lib/types";
 
 export function AppHeader({ leitung }: { leitung: Leitung }) {
   const router = useRouter();
+  const [slUnread, setSlUnread] = useState(0);
+
+  // Ungelesene SL-Meetings (nur für SLs) für den Badge zählen.
+  useEffect(() => {
+    if (leitung.rolle === "admin") return;
+    let cancel = false;
+    (async () => {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user || cancel) return;
+      const [{ data: meetings }, { data: ansicht }] = await Promise.all([
+        supabase
+          .from("sl_meetings")
+          .select("created_at, updated_at, sl_meeting_teilnehmer!inner(leitung_id)")
+          .eq("sl_meeting_teilnehmer.leitung_id", user.id),
+        supabase
+          .from("sl_meeting_ansicht")
+          .select("gesehen_am")
+          .eq("leitung_id", user.id)
+          .maybeSingle(),
+      ]);
+      if (cancel) return;
+      const seen = (ansicht as { gesehen_am: string } | null)?.gesehen_am ?? "";
+      const rows = (meetings ?? []) as { created_at: string; updated_at: string }[];
+      const n = rows.filter(
+        (m) => !seen || m.created_at > seen || m.updated_at > seen,
+      ).length;
+      setSlUnread(n);
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, [leitung.rolle]);
 
   async function logout() {
     const supabase = createClient();
@@ -50,6 +86,25 @@ export function AppHeader({ leitung }: { leitung: Leitung }) {
             <FileUp className="size-4 sm:mr-1.5" />
             <span className="hidden sm:inline">Import</span>
           </Button>
+          {leitung.rolle !== "admin" && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="relative"
+              render={<Link href="/sl-meetings" />}
+            >
+              <CalendarDays className="size-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">SL-Meetings</span>
+              {slUnread > 0 && (
+                <span
+                  className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-4 text-primary-foreground"
+                  data-testid="sl-meetings-badge"
+                >
+                  {slUnread}
+                </span>
+              )}
+            </Button>
+          )}
           {leitung.rolle === "admin" && (
             <Button variant="ghost" size="sm" render={<Link href="/admin/vertragsmodelle" />}>
               <Wallet className="size-4 sm:mr-1.5" />

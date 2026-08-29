@@ -12,8 +12,10 @@ import {
   List,
   Loader2,
   MapPin,
+  Megaphone,
   School,
   Search,
+  Trash2,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -67,12 +69,16 @@ import { RING_OPTIONS, ringLabel } from "@/lib/berlin-ring";
 import { ampelInfo } from "@/lib/ampel";
 import { wiedervorlageInfo } from "@/lib/wiedervorlage";
 import type {
+  Broadcast,
   FarbLegende,
   Leitung,
   SchuleMitLeitung,
   Standort,
   StandortMitVorschlag,
 } from "@/lib/types";
+import { createBroadcast, deleteBroadcast } from "@/app/dashboard/actions";
+import { Textarea } from "@/components/ui/textarea";
+import { formatDate } from "@/lib/dates";
 
 type LegendeRow = Pick<FarbLegende, "standort_id" | "farbe" | "bezeichnung">;
 
@@ -179,6 +185,7 @@ export function DashboardClient({
   vorgeschlagen,
   leitungen,
   farbLegende,
+  broadcasts,
 }: {
   schulen: SchuleMitLeitung[];
   me: Leitung;
@@ -186,6 +193,7 @@ export function DashboardClient({
   vorgeschlagen: StandortMitVorschlag[];
   leitungen: Pick<Leitung, "id" | "name">[];
   farbLegende: LegendeRow[];
+  broadcasts: Broadcast[];
 }) {
   const router = useRouter();
   const admin = me.rolle === "admin";
@@ -585,6 +593,9 @@ export function DashboardClient({
           admin && selected.size > 0 && "pb-28",
         )}
       >
+        {/* Broadcast-Infos an alle SLs */}
+        <BroadcastPanel broadcasts={broadcasts} isAdmin={admin} />
+
         {/* Bereich-Umschalter + Neue Schule/Träger */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="inline-flex rounded-lg border p-0.5">
@@ -1174,5 +1185,114 @@ function SchulartCount({ n, active }: { n: number; active: boolean }) {
     >
       {n}
     </span>
+  );
+}
+
+// Broadcast-Infofeld: Admin veröffentlicht/löscht Nachrichten an alle SLs;
+// SLs sehen sie nur (read-only). Mehrere gleichzeitig, neueste zuerst.
+function BroadcastPanel({
+  broadcasts,
+  isAdmin,
+}: {
+  broadcasts: Broadcast[];
+  isAdmin: boolean;
+}) {
+  const router = useRouter();
+  const [text, setText] = useState("");
+  const [pending, start] = useTransition();
+
+  // SLs ohne Nachrichten sehen gar nichts (kein leeres Feld).
+  if (!isAdmin && broadcasts.length === 0) return null;
+
+  function veroeffentlichen() {
+    const t = text.trim();
+    if (!t) return;
+    start(async () => {
+      const res = await createBroadcast(t);
+      if (!res.ok) {
+        toast.error("Nicht veröffentlicht", { description: res.error });
+        return;
+      }
+      setText("");
+      toast.success("Info veröffentlicht");
+      router.refresh();
+    });
+  }
+
+  function loeschen(id: string) {
+    start(async () => {
+      const res = await deleteBroadcast(id);
+      if (!res.ok) {
+        toast.error("Nicht gelöscht", { description: res.error });
+        return;
+      }
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="rounded-lg border bg-card p-4" data-testid="broadcast-panel">
+      <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+        <Megaphone className="size-4 text-primary" />
+        Infos an alle SLs
+      </div>
+
+      {isAdmin && (
+        <div className="mb-3 space-y-2">
+          <Textarea
+            rows={2}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Info an alle SLs…"
+            data-testid="broadcast-input"
+          />
+          <div className="flex justify-end">
+            <Button
+              size="sm"
+              onClick={veroeffentlichen}
+              disabled={pending || !text.trim()}
+              data-testid="broadcast-publish"
+            >
+              {pending && <Loader2 className="mr-2 size-4 animate-spin" />}
+              Veröffentlichen
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {broadcasts.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Keine Infos.</p>
+      ) : (
+        <ul className="space-y-2">
+          {broadcasts.map((b) => (
+            <li
+              key={b.id}
+              className="flex items-start justify-between gap-3 rounded-md border bg-background px-3 py-2"
+              data-testid="broadcast-item"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="whitespace-pre-wrap text-sm">{b.nachricht}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {formatDate(b.created_at)}
+                </p>
+              </div>
+              {isAdmin && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-7 shrink-0 text-muted-foreground hover:text-destructive"
+                  aria-label="Info löschen"
+                  disabled={pending}
+                  onClick={() => loeschen(b.id)}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
