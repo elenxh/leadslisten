@@ -51,6 +51,7 @@ import { STATUS_LIST, anrufTypLabel } from "@/lib/status";
 import { SCHULART_OPTIONS } from "@/lib/schulart";
 import {
   deleteSchule,
+  protokolliereEmail,
   speichereAkquise,
   updateSchuleFelder,
   updateSchulart,
@@ -146,6 +147,7 @@ export function SchuleDetail({
   const [standort, setStandort] = useState(schule.standort_id ?? "");
   const [zuordnungOffen, setZuordnungOffen] = useState(false);
   const [saving, startSave] = useTransition();
+  const [, startEmail] = useTransition();
 
   // Editierbare Stamm-/Kontaktdaten (Berechtigung: Admin oder Standort-Leitung).
   const [kd, setKd] = useState({
@@ -516,6 +518,16 @@ export function SchuleDetail({
                       variant="outline"
                       size="sm"
                       data-testid="email-cc"
+                      onClick={() =>
+                        startEmail(async () => {
+                          const res = await protokolliereEmail({ schuleId: schule.id });
+                          if (!res.ok) {
+                            toast.error("E-Mail nicht protokolliert", { description: res.error });
+                            return;
+                          }
+                          router.refresh();
+                        })
+                      }
                       render={
                         <a
                           href={`mailto:${schule.mail}?cc=${encodeURIComponent(SCHUL_MAIL_CC)}&subject=${encodeURIComponent(schule.name)}`}

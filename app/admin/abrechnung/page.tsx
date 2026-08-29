@@ -61,6 +61,7 @@ export default async function AbrechnungPage({
                   <th className="px-3 py-2 font-medium">Vertragsmodell</th>
                   <th className="px-3 py-2 text-right font-medium">Calls</th>
                   <th className="px-3 py-2 text-right font-medium">Termine</th>
+                  <th className="px-3 py-2 text-right font-medium">E-Mails</th>
                   <th className="border-l px-3 py-2 text-right font-medium">Meeting (min)</th>
                   <th className="px-3 py-2 text-right font-medium">Orga (min)</th>
                   <th className="border-l px-3 py-2 text-right font-medium">Berechnet (h)</th>
@@ -76,6 +77,7 @@ export default async function AbrechnungPage({
                     <td className="px-3 py-2 text-muted-foreground">{z.modellName ?? "—"}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{z.callsCount}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{z.termineCount}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{z.emailsCount}</td>
                     <td className="border-l px-3 py-2 text-right tabular-nums">{z.meetingMin}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{z.orgaMin}</td>
                     <td className="border-l px-3 py-2 text-right tabular-nums">{stundenAusMinuten(z.berechneteMin)}</td>
@@ -84,7 +86,7 @@ export default async function AbrechnungPage({
                   </tr>
                 ))}
                 {zeilen.length === 0 && (
-                  <tr><td colSpan={10} className="px-3 py-6 text-center text-muted-foreground">Keine Standortleitungen.</td></tr>
+                  <tr><td colSpan={11} className="px-3 py-6 text-center text-muted-foreground">Keine Standortleitungen.</td></tr>
                 )}
               </tbody>
             </table>

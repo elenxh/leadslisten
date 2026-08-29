@@ -13,6 +13,7 @@ export const STATUS_LIST = [
   { value: "Im Gespräch", label: "Im Gespräch" },
   { value: "Termin/Kennenlernen", label: "Termin/Kennenlernen" },
   { value: "Abschluss", label: "Abschluss" },
+  { value: "Lehrermanagement", label: "Lehrermanagement" },
   { value: "Kein Interesse", label: "Kein Interesse" },
   { value: "Anderer Anbieter", label: "Anderer Anbieter" },
 ] as const;
@@ -32,6 +33,10 @@ export const END_STATUS: readonly string[] = [
 
 // Der "aktive Kooperation"-Endzustand (früher "Kooperationsabschluss").
 export const ABSCHLUSS_STATUS = "Abschluss";
+
+// "Aktive Kooperationen" (KPI-Kachel) = Abschluss + laufendes Lehrermanagement
+// (Stundenplan-Planung nach dem Abschluss, aktiver Arbeitszustand).
+export const AKTIVE_KOOP_STATUS: readonly string[] = ["Abschluss", "Lehrermanagement"];
 
 export interface StatusMeta {
   value: string;

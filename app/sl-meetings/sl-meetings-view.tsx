@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { CalendarDays, Clock, ExternalLink, Video } from "lucide-react";
+import { CalendarDays, Clock, ExternalLink, Link2, Video } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,20 @@ export interface SLMeetingItem {
   neu: boolean;
 }
 
-export function SLMeetingsView({ meetings }: { meetings: SLMeetingItem[] }) {
+export interface RessourcenLinkItem {
+  id: string;
+  titel: string;
+  url: string;
+  beschreibung: string | null;
+}
+
+export function SLMeetingsView({
+  meetings,
+  links,
+}: {
+  meetings: SLMeetingItem[];
+  links: RessourcenLinkItem[];
+}) {
   // Beim Öffnen als gelesen markieren (leert den Ungelesen-Badge im Header).
   useEffect(() => {
     let abgebrochen = false;
@@ -40,6 +53,36 @@ export function SLMeetingsView({ meetings }: { meetings: SLMeetingItem[] }) {
 
   return (
     <main className="mx-auto max-w-3xl space-y-5 px-4 py-6">
+      {links.length > 0 && (
+        <div className="rounded-lg border bg-card p-4" data-testid="wichtige-links">
+          <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+            <Link2 className="size-4 text-primary" />
+            Wichtige Links
+          </div>
+          <ul className="space-y-2">
+            {links.map((l) => (
+              <li key={l.id}>
+                <a
+                  href={l.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex items-start gap-2 rounded-md border bg-background px-3 py-2 transition-colors hover:bg-muted/60"
+                  data-testid="wichtiger-link"
+                >
+                  <ExternalLink className="mt-0.5 size-4 shrink-0 text-muted-foreground group-hover:text-primary" />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium group-hover:text-primary">{l.titel}</span>
+                    {l.beschreibung && (
+                      <span className="block text-xs text-muted-foreground">{l.beschreibung}</span>
+                    )}
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div>
         <h1 className="text-xl font-semibold">SL-Meetings</h1>
         <p className="text-sm text-muted-foreground">

@@ -27,19 +27,25 @@ import {
   updateSLMeeting,
   type SLMeetingInput,
 } from "@/app/stundennachweis/actions";
-import type { Leitung } from "@/lib/types";
+import type { Leitung, RessourcenLink } from "@/lib/types";
 import type { MeetingMitTeilnehmer } from "./page";
+import { RessourcenLinksAdmin } from "./ressourcen-links-admin";
 
 export function SLMeetingsClient({
   sls,
   meetings,
+  ressourcenLinks,
 }: {
   sls: Pick<Leitung, "id" | "name" | "kuerzel" | "farbe">[];
   meetings: MeetingMitTeilnehmer[];
+  ressourcenLinks: RessourcenLink[];
 }) {
   const nameOf = (id: string) => sls.find((s) => s.id === id)?.name ?? "?";
   return (
-    <main className="mx-auto max-w-3xl space-y-5 px-4 py-6">
+    <main className="mx-auto max-w-3xl space-y-8 px-4 py-6">
+      <RessourcenLinksAdmin links={ressourcenLinks} />
+
+      <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">SL-Meetings</h1>
@@ -87,6 +93,7 @@ export function SLMeetingsClient({
             </CardContent>
           </Card>
         ))}
+      </div>
       </div>
     </main>
   );

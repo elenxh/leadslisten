@@ -2,7 +2,7 @@ import { AppHeader } from "@/components/app/app-header";
 import { requireLeitung } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { todayISO } from "@/lib/dates";
-import type { SLMeeting } from "@/lib/types";
+import type { RessourcenLink, SLMeeting } from "@/lib/types";
 import { SLMeetingsView, type SLMeetingItem } from "./sl-meetings-view";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +11,7 @@ export default async function SLMeetingsSLPage() {
   const me = await requireLeitung();
   const supabase = await createClient();
 
-  const [{ data: meetingsData }, { data: ansicht }] = await Promise.all([
+  const [{ data: meetingsData }, { data: ansicht }, { data: linksData }] = await Promise.all([
     supabase
       .from("sl_meetings")
       .select(
@@ -24,6 +24,12 @@ export default async function SLMeetingsSLPage() {
       .select("gesehen_am")
       .eq("leitung_id", me.id)
       .maybeSingle(),
+    supabase
+      .from("ressourcen_links")
+      .select("id, titel, url, beschreibung")
+      .eq("aktiv", true)
+      .order("sortierung", { ascending: true })
+      .order("created_at", { ascending: true }),
   ]);
 
   const seen = (ansicht as { gesehen_am: string } | null)?.gesehen_am ?? "";
@@ -44,10 +50,15 @@ export default async function SLMeetingsSLPage() {
   const vergangen = alle.filter((m) => m.datum < heute).reverse();
   const meetings = [...kommend, ...vergangen];
 
+  const links = (linksData ?? []) as Pick<
+    RessourcenLink,
+    "id" | "titel" | "url" | "beschreibung"
+  >[];
+
   return (
     <>
       <AppHeader leitung={me} />
-      <SLMeetingsView meetings={meetings} />
+      <SLMeetingsView meetings={meetings} links={links} />
     </>
   );
 }

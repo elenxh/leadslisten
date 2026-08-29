@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { AppHeader } from "@/components/app/app-header";
 import { isAdmin, requireLeitung } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import type { Leitung, SLMeeting } from "@/lib/types";
+import type { Leitung, RessourcenLink, SLMeeting } from "@/lib/types";
 import { SLMeetingsClient } from "./sl-meetings-client";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +15,7 @@ export default async function SLMeetingsPage() {
   if (!isAdmin(me)) redirect("/dashboard");
 
   const supabase = await createClient();
-  const [{ data: sls }, { data: meetingsData }] = await Promise.all([
+  const [{ data: sls }, { data: meetingsData }, { data: linksData }] = await Promise.all([
     supabase
       .from("leitungen")
       .select("id, name, kuerzel, farbe")
@@ -26,6 +26,11 @@ export default async function SLMeetingsPage() {
       .from("sl_meetings")
       .select("*, teilnehmer:sl_meeting_teilnehmer(leitung_id)")
       .order("datum", { ascending: false }),
+    supabase
+      .from("ressourcen_links")
+      .select("*")
+      .order("sortierung", { ascending: true })
+      .order("created_at", { ascending: true }),
   ]);
 
   type Row = SLMeeting & { teilnehmer: { leitung_id: string }[] };
@@ -40,6 +45,7 @@ export default async function SLMeetingsPage() {
       <SLMeetingsClient
         sls={(sls ?? []) as Pick<Leitung, "id" | "name" | "kuerzel" | "farbe">[]}
         meetings={meetings}
+        ressourcenLinks={(linksData ?? []) as RessourcenLink[]}
       />
     </>
   );

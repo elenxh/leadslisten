@@ -50,6 +50,12 @@ export interface TerminEintrag {
   schuleName: string | null;
   notiz: string | null;
 }
+export interface EmailEintrag {
+  id: string;
+  datumISO: string;
+  schuleName: string | null;
+  notiz: string | null;
+}
 export interface OrgaEintrag {
   id: string;
   datumISO: string;
@@ -192,6 +198,7 @@ export interface TagAuswertung {
   wochentag: number; // 1=Mo … 7=So
   calls: CallEintrag[];
   termine: TerminEintrag[];
+  emails: EmailEintrag[];
   orga: OrgaEintrag[];
   stunden: StundenEintrag[];
   imZeitraum: boolean; // Kalendertag innerhalb [start, ende]?
@@ -203,6 +210,7 @@ export interface WochenAuswertung {
   tage: TagAuswertung[]; // 7 Tage Mo–So (Kalenderblatt)
   calls: CallEintrag[];
   termine: TerminEintrag[];
+  emails: EmailEintrag[];
   orga: OrgaEintrag[];
   stunden: StundenEintrag[];
   sollCalls: number | null;
@@ -216,6 +224,7 @@ export interface WochenAuswertung {
 export interface ZeitraumSumme {
   callsCount: number;
   termineCount: number;
+  emailsCount: number;
   callMinuten: number;
   terminMinuten: number;
   orgaMinuten: number;
@@ -237,6 +246,7 @@ export function auswerten(input: {
   zuweisungen: VertragZuweisung[];
   calls: CallEintrag[];
   termine: TerminEintrag[];
+  emails: EmailEintrag[];
   orga: OrgaEintrag[];
   stunden: StundenEintrag[];
 }): Auswertung {
@@ -247,6 +257,7 @@ export function auswerten(input: {
     const inW = (iso: string) => inRange(iso, w.montagISO, w.sonntagISO);
     const calls = input.calls.filter((c) => inW(c.datumISO));
     const termine = input.termine.filter((t) => inW(t.datumISO));
+    const emails = input.emails.filter((e) => inW(e.datumISO));
     const orga = input.orga.filter((o) => inW(o.datumISO));
     const stunden = input.stunden.filter((s) => inW(s.datumISO));
     const modell = modellAmTag(zuweisungen, modelle, w.montagISO);
@@ -260,6 +271,7 @@ export function auswerten(input: {
         wochentag: i + 1,
         calls: calls.filter((c) => c.datumISO === d),
         termine: termine.filter((t) => t.datumISO === d),
+        emails: emails.filter((e) => e.datumISO === d),
         orga: orga.filter((o) => o.datumISO === d),
         stunden: stunden.filter((st) => st.datumISO === d),
         imZeitraum: inRange(d, zeitraum.startISO, zeitraum.endISO),
@@ -286,6 +298,7 @@ export function auswerten(input: {
       tage,
       calls,
       termine,
+      emails,
       orga,
       stunden,
       sollCalls,
@@ -301,6 +314,7 @@ export function auswerten(input: {
   const p = (iso: string) => inRange(iso, zeitraum.startISO, zeitraum.endISO);
   const pCalls = input.calls.filter((c) => p(c.datumISO));
   const pTermine = input.termine.filter((t) => p(t.datumISO));
+  const pEmails = input.emails.filter((e) => p(e.datumISO));
   const pOrga = input.orga.filter((o) => p(o.datumISO));
   const pStunden = input.stunden.filter((s) => p(s.datumISO));
 
@@ -316,6 +330,7 @@ export function auswerten(input: {
   const summe: ZeitraumSumme = {
     callsCount: pCalls.length,
     termineCount: pTermine.length,
+    emailsCount: pEmails.length,
     callMinuten,
     terminMinuten,
     orgaMinuten,

@@ -58,7 +58,7 @@ import {
 } from "@/components/app/standort-sidebar";
 import { createClient } from "@/lib/supabase/client";
 import { writeSchulOrder } from "@/lib/schul-order";
-import { ABSCHLUSS_STATUS, END_STATUS, STATUS_LIST } from "@/lib/status";
+import { AKTIVE_KOOP_STATUS, END_STATUS, STATUS_LIST } from "@/lib/status";
 import {
   SCHULART_KATEGORIEN,
   schulartKategorie,
@@ -118,10 +118,10 @@ const istWvFaellig = (
   return modus === "heute" ? info.heuteFaellig : info.dieseWocheFaellig;
 };
 
-// Abschluss-Status, getrennt ausgewertet. "Aktive Kooperationen" = Abschluss.
+// "Aktive Kooperationen" = Abschluss + Lehrermanagement (zentral in lib/status).
 const ABSAGE_STATUS: readonly string[] = ["Kein Interesse", "Anderer Anbieter"];
 const istKoop = (s: SchuleMitLeitung): boolean =>
-  s.status === ABSCHLUSS_STATUS;
+  AKTIVE_KOOP_STATUS.includes(s.status);
 const istAbsage = (s: SchuleMitLeitung): boolean =>
   ABSAGE_STATUS.includes(s.status);
 
@@ -575,7 +575,7 @@ export function DashboardClient({
     <div className="mx-auto flex max-w-7xl gap-6 px-4 py-5">
       {/* Sidebar – Desktop */}
       <aside className="hidden w-56 shrink-0 lg:block">
-        <div className="sticky top-20">
+        <div className="sticky top-20 space-y-4">
           <StandortSidebar
             data={sidebarData}
             value={standortFilter}
@@ -584,6 +584,8 @@ export function DashboardClient({
             leitungen={leitungen}
             totalCounts={totalByStandort}
           />
+          {/* Broadcast-Infos an alle SLs – unter der Standort-Liste */}
+          <BroadcastPanel broadcasts={broadcasts} isAdmin={admin} />
         </div>
       </aside>
 
@@ -593,9 +595,6 @@ export function DashboardClient({
           admin && selected.size > 0 && "pb-28",
         )}
       >
-        {/* Broadcast-Infos an alle SLs */}
-        <BroadcastPanel broadcasts={broadcasts} isAdmin={admin} />
-
         {/* Bereich-Umschalter + Neue Schule/Träger */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="inline-flex rounded-lg border p-0.5">
@@ -1063,6 +1062,11 @@ export function DashboardClient({
             </div>
           )}
         </div>
+
+        {/* Broadcast-Infos – mobil (Sidebar ist ausgeblendet) unten */}
+        <div className="lg:hidden">
+          <BroadcastPanel broadcasts={broadcasts} isAdmin={admin} />
+        </div>
       </div>
 
       {/* Schwebende Massen-Aktionsleiste (nur Admin, bei Auswahl) */}
@@ -1200,6 +1204,7 @@ function BroadcastPanel({
   const router = useRouter();
   const [text, setText] = useState("");
   const [pending, start] = useTransition();
+  const [alleZeigen, setAlleZeigen] = useState(false);
 
   // SLs ohne Nachrichten sehen gar nichts (kein leeres Feld).
   if (!isAdmin && broadcasts.length === 0) return null;
@@ -1230,68 +1235,89 @@ function BroadcastPanel({
     });
   }
 
+  const SICHTBAR = 3;
+  const sichtbar = alleZeigen ? broadcasts : broadcasts.slice(0, SICHTBAR);
+  const mehr = broadcasts.length - SICHTBAR;
+
   return (
-    <div className="rounded-lg border bg-card p-4" data-testid="broadcast-panel">
-      <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-        <Megaphone className="size-4 text-primary" />
-        Infos an alle SLs
+    <div className="rounded-lg border bg-card p-3" data-testid="broadcast-panel">
+      <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold">
+        <Megaphone className="size-3.5 text-primary" />
+        Infos
       </div>
 
       {isAdmin && (
-        <div className="mb-3 space-y-2">
+        <div className="mb-2 space-y-1.5">
           <Textarea
             rows={2}
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Info an alle SLs…"
+            className="min-h-0 text-xs"
             data-testid="broadcast-input"
           />
-          <div className="flex justify-end">
-            <Button
-              size="sm"
-              onClick={veroeffentlichen}
-              disabled={pending || !text.trim()}
-              data-testid="broadcast-publish"
-            >
-              {pending && <Loader2 className="mr-2 size-4 animate-spin" />}
-              Veröffentlichen
-            </Button>
-          </div>
+          <Button
+            size="sm"
+            className="h-7 w-full text-xs"
+            onClick={veroeffentlichen}
+            disabled={pending || !text.trim()}
+            data-testid="broadcast-publish"
+          >
+            {pending && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
+            Veröffentlichen
+          </Button>
         </div>
       )}
 
       {broadcasts.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Keine Infos.</p>
+        isAdmin && <p className="text-xs text-muted-foreground">Noch keine Infos.</p>
       ) : (
-        <ul className="space-y-2">
-          {broadcasts.map((b) => (
-            <li
-              key={b.id}
-              className="flex items-start justify-between gap-3 rounded-md border bg-background px-3 py-2"
-              data-testid="broadcast-item"
+        <>
+          <ul
+            className={cn(
+              "space-y-1.5",
+              alleZeigen && "max-h-64 overflow-y-auto pr-1",
+            )}
+          >
+            {sichtbar.map((b) => (
+              <li
+                key={b.id}
+                className="flex items-start justify-between gap-2 rounded-md border bg-background px-2 py-1.5"
+                data-testid="broadcast-item"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="whitespace-pre-wrap text-xs leading-snug">{b.nachricht}</p>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">
+                    {formatDate(b.created_at)}
+                  </p>
+                </div>
+                {isAdmin && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-6 shrink-0 text-muted-foreground hover:text-destructive"
+                    aria-label="Info löschen"
+                    disabled={pending}
+                    onClick={() => loeschen(b.id)}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+          {mehr > 0 && (
+            <button
+              type="button"
+              onClick={() => setAlleZeigen((o) => !o)}
+              className="mt-1.5 text-[11px] font-medium text-primary hover:underline"
+              data-testid="broadcast-toggle"
             >
-              <div className="min-w-0 flex-1">
-                <p className="whitespace-pre-wrap text-sm">{b.nachricht}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {formatDate(b.created_at)}
-                </p>
-              </div>
-              {isAdmin && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-7 shrink-0 text-muted-foreground hover:text-destructive"
-                  aria-label="Info löschen"
-                  disabled={pending}
-                  onClick={() => loeschen(b.id)}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
-              )}
-            </li>
-          ))}
-        </ul>
+              {alleZeigen ? "weniger" : `alle anzeigen (${broadcasts.length})`}
+            </button>
+          )}
+        </>
       )}
     </div>
   );
