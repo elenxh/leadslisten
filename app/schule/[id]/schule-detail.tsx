@@ -48,13 +48,18 @@ import { LeitungAvatar } from "@/components/app/leitung-avatar";
 import { AnrufDialog } from "@/components/app/anruf-dialog";
 import { VorOrtDialog } from "@/components/app/vor-ort-dialog";
 import { STATUS_LIST, anrufTypLabel } from "@/lib/status";
-import { SCHULART_OPTIONS } from "@/lib/schulart";
+import {
+  SCHULART_OPTIONS,
+  TRAEGER_KATEGORIEN,
+  traegerKategorieOderDefault,
+} from "@/lib/schulart";
 import {
   deleteSchule,
   protokolliereEmail,
   speichereAkquise,
   updateSchuleFelder,
   updateSchulart,
+  updateTraegerKategorie,
 } from "@/app/standorte/actions";
 import { AmpelBadge } from "@/components/app/ampel";
 import { ErgebnisMarker, WiedervorlageMarker } from "@/components/app/anruf-marker";
@@ -247,6 +252,28 @@ export function SchuleDetail({
       return;
     }
     toast.success("Schulart aktualisiert");
+    router.refresh();
+  }
+
+  const [traegerKatVal, setTraegerKatVal] = useState<string>(
+    traegerKategorieOderDefault(schule.traeger_kategorie),
+  );
+  const [savingTraegerKat, setSavingTraegerKat] = useState(false);
+
+  async function changeTraegerKategorie(v: string) {
+    const prev = traegerKatVal;
+    setTraegerKatVal(v);
+    setSavingTraegerKat(true);
+    const res = await updateTraegerKategorie(schule.id, v);
+    setSavingTraegerKat(false);
+    if (!res.ok) {
+      setTraegerKatVal(prev);
+      toast.error("Kategorie konnte nicht gespeichert werden", {
+        description: res.error,
+      });
+      return;
+    }
+    toast.success("Kategorie aktualisiert");
     router.refresh();
   }
 
@@ -591,20 +618,37 @@ export function SchuleDetail({
                   <Label htmlFor="erstkontakt" className="text-xs text-muted-foreground">Kontakt</Label>
                   <Input id="erstkontakt" type="date" value={erstkontakt} onChange={(e) => setErstkontakt(e.target.value)} />
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="flex items-center gap-2 text-xs text-muted-foreground">
-                    Schulart
-                    {savingSchulart && <Loader2 className="size-3 animate-spin" />}
-                  </Label>
-                  <Select value={schulartVal} onValueChange={(v) => changeSchulart((v as string) ?? "")} disabled={savingSchulart}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Schulart wählen">{(v: string) => v || "Schulart wählen"}</SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {schulartOptions.map((o) => (<SelectItem key={o} value={o}>{o}</SelectItem>))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {schule.typ === "traeger" ? (
+                  <div className="space-y-1.5">
+                    <Label className="flex items-center gap-2 text-xs text-muted-foreground">
+                      Kategorie
+                      {savingTraegerKat && <Loader2 className="size-3 animate-spin" />}
+                    </Label>
+                    <Select value={traegerKatVal} onValueChange={(v) => changeTraegerKategorie((v as string) ?? "")} disabled={savingTraegerKat}>
+                      <SelectTrigger className="w-full" data-testid="traeger-kategorie">
+                        <SelectValue placeholder="Kategorie wählen">{(v: string) => v || "Kategorie wählen"}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TRAEGER_KATEGORIEN.map((k) => (<SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <Label className="flex items-center gap-2 text-xs text-muted-foreground">
+                      Schulart
+                      {savingSchulart && <Loader2 className="size-3 animate-spin" />}
+                    </Label>
+                    <Select value={schulartVal} onValueChange={(v) => changeSchulart((v as string) ?? "")} disabled={savingSchulart}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Schulart wählen">{(v: string) => v || "Schulart wählen"}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {schulartOptions.map((o) => (<SelectItem key={o} value={o}>{o}</SelectItem>))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -683,7 +727,11 @@ export function SchuleDetail({
               </div>
               <InfoRow icon={Clock3} label="Wiedervorlage am">{schule.wiedervorlage_am ? formatDate(schule.wiedervorlage_am) : "—"}</InfoRow>
               <InfoRow icon={Clock3} label="Kontakt">{schule.erstkontakt_am ? formatDate(schule.erstkontakt_am) : "—"}</InfoRow>
-              <InfoRow icon={GraduationCap} label="Schulart">{schule.schulart ?? "—"}</InfoRow>
+              {schule.typ === "traeger" ? (
+                <InfoRow icon={GraduationCap} label="Kategorie">{traegerKategorieOderDefault(schule.traeger_kategorie)}</InfoRow>
+              ) : (
+                <InfoRow icon={GraduationCap} label="Schulart">{schule.schulart ?? "—"}</InfoRow>
+              )}
               {schule.akquise_notiz && (
                 <div>
                   <p className="text-xs text-muted-foreground">Akquise-Notiz</p>

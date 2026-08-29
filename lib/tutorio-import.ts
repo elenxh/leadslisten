@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
 
 import { deriveOrtUndRing } from "@/lib/excel-import";
+import { traegerKategorieOderDefault } from "@/lib/schulart";
 
 // Eine importierte Zeile aus der Tutorio-Vorlage (nach Header-Erkennung).
 export interface TutorioRow {
@@ -16,6 +17,7 @@ export interface TutorioRow {
   tel: string | null;
   bezirk: string | null;
   oeffnungszeiten: string | null;
+  kategorie: string | null; // nur Träger-Reiter (optionale Spalte)
 }
 
 export interface TutorioSheetInfo {
@@ -93,7 +95,8 @@ type FieldKey =
   | "mail"
   | "tel"
   | "bezirk"
-  | "oeffnungszeiten";
+  | "oeffnungszeiten"
+  | "kategorie";
 
 // Ordnet eine (normalisierte) Header-Zelle einem Feld zu, oder null.
 function headerField(h: string): FieldKey | null {
@@ -111,6 +114,7 @@ function headerField(h: string): FieldKey | null {
   if (h.includes("telefon") || h === "tel" || h.startsWith("tel ") || h.startsWith("tel.")) return "tel";
   if (h.includes("bezirk")) return "bezirk";
   if (h.includes("offnungszeit")) return "oeffnungszeiten";
+  if (h.includes("kategorie")) return "kategorie";
   return null;
 }
 
@@ -144,6 +148,7 @@ const FELD_LABEL: Record<FieldKey, string> = {
   tel: "Telefon Ansprechpartner",
   bezirk: "Bezirk",
   oeffnungszeiten: "Öffnungszeiten",
+  kategorie: "Kategorie",
 };
 
 // Pflichtspalten je Reiter-Typ (Schulart nur auf Schul-Reitern).
@@ -213,6 +218,7 @@ export function parseTutorioWorkbook(buf: ArrayBuffer): ParsedTutorio {
         tel: at(row, "tel"),
         bezirk: at(row, "bezirk"),
         oeffnungszeiten: at(row, "oeffnungszeiten"),
+        kategorie: at(row, "kategorie"),
       };
 
       // Komplett leere Zeile (Trenner) überspringen.
@@ -252,6 +258,7 @@ export function parseTutorioWorkbook(buf: ArrayBuffer): ParsedTutorio {
         tel: vals.tel,
         bezirk: vals.bezirk,
         oeffnungszeiten: vals.oeffnungszeiten,
+        kategorie: typ === "traeger" ? vals.kategorie : null,
       });
       count++;
     }
@@ -296,6 +303,9 @@ export function tutorioInsertData(
     akquise_notiz: akquiseNotizAus(row),
     status: "Neu",
     typ: row.typ,
+    // Nur Träger tragen eine Kategorie; leer/unbekannt -> 'Sonstige'.
+    traeger_kategorie:
+      row.typ === "traeger" ? traegerKategorieOderDefault(row.kategorie) : "Sonstige",
     standort_id: standortId,
     zustaendig: null,
   };

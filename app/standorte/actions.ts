@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { ringForTown } from "@/lib/berlin-ring";
 import { STATUS_VALUES } from "@/lib/status";
 import { ERGEBNIS_VALUES } from "@/lib/anruf";
+import { TRAEGER_KATEGORIE_VALUES } from "@/lib/schulart";
 import { todayISO } from "@/lib/dates";
 import { SCHUL_MAIL_CC } from "@/lib/config";
 import type { Standort } from "@/lib/types";
@@ -385,6 +386,36 @@ async function darfSchuleBearbeiten(
   if (!rel) {
     return { ok: false, error: "Keine Berechtigung für den Standort dieser Schule." };
   }
+  return { ok: true };
+}
+
+/**
+ * Setzt die Träger-Kategorie (nur typ='traeger' relevant). Rechte wie
+ * Schulart: Admin überall, SL auf eigenen Standorten. Feste Werteliste.
+ */
+export async function updateTraegerKategorie(
+  schuleId: string,
+  kategorie: string,
+): Promise<SimpleResult> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: "Nicht angemeldet." };
+  if (!TRAEGER_KATEGORIE_VALUES.includes(kategorie)) {
+    return { ok: false, error: "Ungültige Kategorie." };
+  }
+
+  const ac = adminClientOrError();
+  if (!ac.ok) return ac;
+  const perm = await darfSchuleBearbeiten(ac.admin, user.id, user.isAdmin, schuleId);
+  if (!perm.ok) return perm;
+
+  const { error } = await ac.admin
+    .from("schulen")
+    .update({ traeger_kategorie: kategorie })
+    .eq("id", schuleId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/dashboard");
+  revalidatePath(`/schule/${schuleId}`);
   return { ok: true };
 }
 

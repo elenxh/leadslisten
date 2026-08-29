@@ -67,6 +67,7 @@ export interface Schule {
   standort_id: string | null; // FK -> standorte.id
   markierung_farbe: string | null; // persönliche Farbmarkierung
   typ: SchulTyp; // 'schule' | 'traeger'
+  traeger_kategorie: string; // nur für typ='traeger' relevant; Default 'Sonstige'
 }
 
 export interface FarbLegende {

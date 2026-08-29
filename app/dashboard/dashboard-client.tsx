@@ -62,7 +62,10 @@ import {
   SCHULART_KATEGORIEN,
   schulartKategorie,
   istTraegerSchulart,
+  TRAEGER_KATEGORIEN,
+  traegerKategorieOderDefault,
   type SchulartKategorie,
+  type TraegerKategorie,
 } from "@/lib/schulart";
 import { RING_OPTIONS, ringLabel } from "@/lib/berlin-ring";
 import { ampelInfo } from "@/lib/ampel";
@@ -213,6 +216,9 @@ export function DashboardClient({
   const [schulartFilter, setSchulartFilter] = useState<SchulartKategorie | "all">(
     "all",
   );
+  const [traegerKatFilter, setTraegerKatFilter] = useState<TraegerKategorie | "all">(
+    "all",
+  );
   const [markFilter, setMarkFilter] = useState<string>("all");
   const [bezirkFilter, setBezirkFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<SortKey>("kontakt_alt");
@@ -280,6 +286,7 @@ export function DashboardClient({
     setBereich(next);
     setTab("alle");
     setSchulartFilter("all");
+    setTraegerKatFilter("all");
     setStandortFilter(STANDORT_ALLE);
     setBezirkFilter("all");
     clearSelection();
@@ -476,6 +483,18 @@ export function DashboardClient({
     return c;
   }, [preSchulart]);
 
+  const traegerKatCounts = useMemo(() => {
+    const c: Record<TraegerKategorie | "all", number> = {
+      all: preSchulart.length,
+      "Kirchliche Gemeinde": 0,
+      Jugendeinrichtung: 0,
+      Verein: 0,
+      Sonstige: 0,
+    };
+    for (const s of preSchulart) c[traegerKategorieOderDefault(s.traeger_kategorie)]++;
+    return c;
+  }, [preSchulart]);
+
   const q = search.trim().toLowerCase();
   const filtered = useMemo(() => {
     // Aktive Suche: reiterübergreifend – ganzer Bereich + Standort, aktiv UND
@@ -486,12 +505,18 @@ export function DashboardClient({
         .filter((s) => matchesSuche(s, q))
         .sort((a, b) => compareSchulen(a, b, sortBy));
     }
-    // Ohne Suche: normale Reiter/Filter; Schulart-Kategorie nur im Schulen-Bereich.
-    if (bereich !== "schule" || schulartFilter === "all") return preSchulart;
+    // Ohne Suche: normale Reiter/Filter; Kategorie-Reiter je nach Bereich.
+    if (bereich === "traeger") {
+      if (traegerKatFilter === "all") return preSchulart;
+      return preSchulart.filter(
+        (s) => traegerKategorieOderDefault(s.traeger_kategorie) === traegerKatFilter,
+      );
+    }
+    if (schulartFilter === "all") return preSchulart;
     return preSchulart.filter(
       (s) => schulartKategorie(s.schulart) === schulartFilter,
     );
-  }, [q, bereichSchulen, matchStandort, sortBy, preSchulart, schulartFilter, bereich]);
+  }, [q, bereichSchulen, matchStandort, sortBy, preSchulart, schulartFilter, traegerKatFilter, bereich]);
 
   // Reihenfolge für die Vor/Zurück-Navigation in der Detailansicht merken.
   // filtered ist bereits standort-gescoped; standortFilter/bereich zusätzlich
@@ -917,6 +942,31 @@ export function DashboardClient({
                   <SchulartCount
                     n={schulartCounts[k.value]}
                     active={schulartFilter === k.value}
+                  />
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        )}
+
+        {/* Träger-Kategorien – nur im Träger-Bereich; bei aktiver Suche
+            ausgeblendet. Gleiche Optik wie die Schularten-Reiter. */}
+        {bereich === "traeger" && !q && (
+          <Tabs
+            value={traegerKatFilter}
+            onValueChange={(v) => setTraegerKatFilter(v as TraegerKategorie | "all")}
+          >
+            <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
+              <TabsTrigger value="all" className="h-7 flex-none">
+                Alle
+                <SchulartCount n={traegerKatCounts.all} active={traegerKatFilter === "all"} />
+              </TabsTrigger>
+              {TRAEGER_KATEGORIEN.map((k) => (
+                <TabsTrigger key={k.value} value={k.value} className="h-7 flex-none">
+                  {k.label}
+                  <SchulartCount
+                    n={traegerKatCounts[k.value]}
+                    active={traegerKatFilter === k.value}
                   />
                 </TabsTrigger>
               ))}
