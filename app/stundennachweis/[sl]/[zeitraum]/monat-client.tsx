@@ -187,6 +187,9 @@ export function MonatClient({
             wochen={auswertung.wochen}
             wvSet={wvSet}
             zeitraumLabel={zeitraumLabel}
+            slId={slId}
+            prevKey={prevKey}
+            nextKey={nextKey}
           />
         </aside>
     </div>
@@ -205,10 +208,16 @@ function MiniKalender({
   wochen,
   wvSet,
   zeitraumLabel,
+  slId,
+  prevKey,
+  nextKey,
 }: {
   wochen: WochenAuswertung[];
   wvSet: Set<string>;
   zeitraumLabel: string;
+  slId: string;
+  prevKey: string;
+  nextKey: string;
 }) {
   function kategorien(t: TagAuswertung): KatKey[] {
     const ks: KatKey[] = [];
@@ -225,8 +234,28 @@ function MiniKalender({
 
   return (
     <div className="rounded-lg border bg-card p-3" data-testid="mini-kalender">
-      <p className="text-sm font-medium">Kalender</p>
-      <p className="mb-2 text-[11px] text-muted-foreground">{zeitraumLabel}</p>
+      <div className="flex items-center justify-between gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-6 text-muted-foreground"
+          aria-label="Voriger Monat"
+          render={<Link href={`/stundennachweis/${slId}?zeitraum=${prevKey}`} scroll={false} />}
+        >
+          <ChevronLeft className="size-4" />
+        </Button>
+        <p className="text-sm font-medium">Kalender</p>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-6 text-muted-foreground"
+          aria-label="Nächster Monat"
+          render={<Link href={`/stundennachweis/${slId}?zeitraum=${nextKey}`} scroll={false} />}
+        >
+          <ChevronRight className="size-4" />
+        </Button>
+      </div>
+      <p className="mb-2 text-center text-[11px] text-muted-foreground">{zeitraumLabel}</p>
       <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-medium text-muted-foreground">
         {WOCHENTAG_KURZ.map((w) => (
           <div key={w}>{w}</div>

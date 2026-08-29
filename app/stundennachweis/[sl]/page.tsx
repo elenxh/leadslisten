@@ -49,7 +49,6 @@ export default async function StundennachweisSLPage({
 
   const heute = todayISO();
   const aktuell = zeitraumFuer(heute);
-  const aktuellMonat = zeitraumMonat(aktuell);
 
   // Ausgewählter Zeitraum (aus ?zeitraum), sonst der laufende Abrechnungsmonat.
   const ref = /^\d{4}-\d{2}-\d{2}$/.test(searchParams.zeitraum ?? "")
@@ -66,17 +65,19 @@ export default async function StundennachweisSLPage({
     ]),
   ).sort((a, b) => a - b);
 
+  // Alle 12 Monate je Jahr anzeigen — künftige Monate optisch abgesetzt.
+  // (SLs planen nach vorn: Wiedervorlagen, Termine.)
   const kacheln: Record<number, MonatsKachel[]> = {};
   for (const jahr of jahre) {
-    const bisMonat = jahr < aktuellMonat.jahr ? 12 : aktuellMonat.monat;
     const arr: MonatsKachel[] = [];
-    for (let monat = 1; monat <= bisMonat; monat++) {
+    for (let monat = 1; monat <= 12; monat++) {
       const z = zeitraumFuerMonat(jahr, monat);
       arr.push({
         monat,
         key: z.key,
         label: MONATE_KURZ[monat - 1],
         aktuell: z.key === aktuell.key,
+        zukunft: z.key > aktuell.key,
       });
     }
     kacheln[jahr] = arr;

@@ -10,6 +10,7 @@ export interface MonatsKachel {
   key: string;
   label: string;
   aktuell: boolean;
+  zukunft: boolean;
 }
 
 export function OrdnerNavigation({
@@ -63,7 +64,9 @@ export function OrdnerNavigation({
                 "flex items-center justify-center rounded-lg border py-3 text-sm font-medium transition-colors hover:bg-muted",
                 aktiv
                   ? "border-primary bg-primary text-primary-foreground hover:bg-primary"
-                  : t.aktuell && "border-primary/50 text-primary",
+                  : t.aktuell
+                    ? "border-primary/50 text-primary"
+                    : t.zukunft && "border-dashed text-muted-foreground",
               )}
             >
               {t.label}
