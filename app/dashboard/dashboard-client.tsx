@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation";
 import {
   Ban,
-  CalendarCheck,
   CalendarClock,
   Clock,
   Handshake,
@@ -67,7 +66,7 @@ import {
 } from "@/lib/schulart";
 import { RING_OPTIONS, ringLabel } from "@/lib/berlin-ring";
 import { ampelInfo } from "@/lib/ampel";
-import { wiedervorlageInfo } from "@/lib/wiedervorlage";
+import { istFaellig } from "@/lib/wiedervorlage";
 import type {
   Broadcast,
   FarbLegende,
@@ -86,7 +85,6 @@ type LegendeRow = Pick<FarbLegende, "standort_id" | "farbe" | "bezeichnung">;
 type TabKey =
   | "baldoffen"
   | "faellig"
-  | "wiedervorlage"
   | "koop"
   | "absage"
   | "alle";
@@ -99,24 +97,13 @@ const VIEW_STORAGE_KEY = "leadslisten:schul-view";
 // Zentral definiert in lib/status.ts (END_STATUS).
 const istErledigt = (s: SchuleMitLeitung) => END_STATUS.includes(s.status);
 
-// "Offen" = rote Ampel (26+ Tage seit letztem gültigen Kontakt). Grau (kein
-// gültiges Datum) zählt NICHT als offen. Nutzt die zentrale Ampel-Logik.
-const istOffen = (s: SchuleMitLeitung): boolean =>
-  ampelInfo(s.erstkontakt_am, s.letzter_anruf_am).stufe === "rot";
+// "Offen" = fällig nach der zentralen Definition (istFaellig, lib/wiedervorlage):
+// rote Ampel oder nie Kontakt — ABER geparkt, solange eine zukünftige
+// Wiedervorlage existiert; fällig ab dem Wiedervorlage-Datum.
 
 // "Bald offen" = gelbe Ampel (13–25 Tage seit letztem Kontakt).
 const istBaldOffen = (s: SchuleMitLeitung): boolean =>
   ampelInfo(s.erstkontakt_am, s.letzter_anruf_am).stufe === "gelb";
-
-// Wiedervorlage fällig (getrennt von der Ampel). "heute" = heute/überfällig,
-// "woche" = überfällig bis Ende dieser Woche.
-const istWvFaellig = (
-  s: SchuleMitLeitung,
-  modus: "heute" | "woche",
-): boolean => {
-  const info = wiedervorlageInfo(s.wiedervorlage_am);
-  return modus === "heute" ? info.heuteFaellig : info.dieseWocheFaellig;
-};
 
 // "Aktive Kooperationen" = Abschluss + Lehrermanagement (zentral in lib/status).
 const ABSAGE_STATUS: readonly string[] = ["Kein Interesse", "Anderer Anbieter"];
@@ -138,11 +125,12 @@ const matchesSuche = (s: SchuleMitLeitung, q: string): boolean =>
   (s.ansprechpartner ?? "").toLowerCase().includes(q) ||
   (s.mail ?? "").toLowerCase().includes(q);
 
-type SortKey = "kontakt_alt" | "kontakt_neu" | "name" | "bezirk";
+type SortKey = "kontakt_alt" | "kontakt_neu" | "faellig" | "name" | "bezirk";
 
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: "kontakt_alt", label: "Letzter Kontakt: älteste zuerst" },
   { value: "kontakt_neu", label: "Letzter Kontakt: neueste zuerst" },
+  { value: "faellig", label: "Fällig zuerst" },
   { value: "name", label: "Name A–Z" },
   { value: "bezirk", label: "Bezirk A–Z" },
 ];
@@ -158,6 +146,19 @@ function compareSchulen(
   const byName = () => a.name.localeCompare(b.name, "de");
 
   if (sortBy === "name") return byName();
+
+  if (sortBy === "faellig") {
+    // Fällige zuerst; innerhalb der Gruppe älterer Kontakt zuerst.
+    const fa = istFaellig(a) ? 0 : 1;
+    const fb = istFaellig(b) ? 0 : 1;
+    if (fa !== fb) return fa - fb;
+    const ta = ampelInfo(a.erstkontakt_am, a.letzter_anruf_am).tage;
+    const tb = ampelInfo(b.erstkontakt_am, b.letzter_anruf_am).tage;
+    if (ta == null && tb == null) return byName();
+    if (ta == null) return 1;
+    if (tb == null) return -1;
+    return tb - ta || byName();
+  }
 
   if (sortBy === "bezirk") {
     const oa = ortVon(a);
@@ -206,8 +207,6 @@ export function DashboardClient({
   const [absageFilter, setAbsageFilter] = useState<
     "alle" | "Kein Interesse" | "Anderer Anbieter"
   >("alle");
-  // Sub-Filter innerhalb der "Wiedervorlage fällig"-Ansicht.
-  const [wvFilter, setWvFilter] = useState<"woche" | "heute">("woche");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [ringFilter, setRingFilter] = useState<string>("all");
   const [standortFilter, setStandortFilter] = useState<string>(STANDORT_ALLE);
@@ -350,9 +349,8 @@ export function DashboardClient({
     return {
       mine: aktiv.length,
       baldOffen: aktiv.filter(istBaldOffen).length,
-      offen: aktiv.filter(istOffen).length,
-      // Zähler = To-dos dieser Woche (überfällig .. Sonntag).
-      wiedervorlage: aktiv.filter((s) => istWvFaellig(s, "woche")).length,
+      // "Offen" = fällig (inkl. erreichter Wiedervorlagen; geparkte zählen nicht).
+      offen: aktiv.filter(istFaellig).length,
       koop: standortScope.filter(istKoop).length,
       absage: standortScope.filter(istAbsage).length,
     };
@@ -387,13 +385,7 @@ export function DashboardClient({
       case "baldoffen":
         return aktiv.filter(istBaldOffen);
       case "faellig":
-        return aktiv.filter(istOffen);
-      case "wiedervorlage":
-        return aktiv
-          .filter((s) => istWvFaellig(s, wvFilter))
-          .sort((a, b) =>
-            (a.wiedervorlage_am ?? "").localeCompare(b.wiedervorlage_am ?? ""),
-          );
+        return aktiv.filter(istFaellig);
       case "koop":
         return bereichSchulen.filter(istKoop);
       case "absage": {
@@ -406,7 +398,7 @@ export function DashboardClient({
       default:
         return aktiv;
     }
-  }, [tab, bereichSchulen, absageFilter, wvFilter]);
+  }, [tab, bereichSchulen, absageFilter]);
 
   // Zähl-Basis für die Seitenleiste: ALLE Schulen des Standorts im aktuellen
   // Bereich (Schule/Träger) + Admin/Leitung-Scope, ABZÜGLICH der Absagen
@@ -644,7 +636,7 @@ export function DashboardClient({
 
         {/* Statistik-Kacheln + feste Ampel-Mini-Legende rechts daneben */}
         <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
             <StatCard
               label={`${nomen} gesamt`}
               value={stats.mine}
@@ -672,14 +664,6 @@ export function DashboardClient({
               accent="bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-200"
               active={tab === "baldoffen"}
               onClick={() => toggleTab("baldoffen")}
-            />
-            <StatCard
-              label="Wiedervorlage fällig"
-              value={stats.wiedervorlage}
-              icon={CalendarCheck}
-              accent="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-200"
-              active={tab === "wiedervorlage"}
-              onClick={() => toggleTab("wiedervorlage")}
             />
             <StatCard
               label="Aktive Kooperationen"
@@ -740,33 +724,6 @@ export function DashboardClient({
 
         {/* Die Filterung läuft über die klickbaren KPI-Kacheln oben – keine
             separate Status-Reiterleiste mehr. */}
-
-        {/* Sub-Dashboard der Wiedervorlagen-Ansicht: Heute / Diese Woche */}
-        {tab === "wiedervorlage" && (
-          <div className="flex flex-wrap items-center gap-1">
-            {(
-              [
-                ["woche", "Diese Woche"],
-                ["heute", "Heute / überfällig"],
-              ] as const
-            ).map(([val, label]) => (
-              <button
-                key={val}
-                type="button"
-                onClick={() => setWvFilter(val)}
-                aria-pressed={wvFilter === val}
-                className={cn(
-                  "rounded-md px-3 py-1 text-sm transition-colors",
-                  wvFilter === val
-                    ? "bg-muted font-medium text-foreground"
-                    : "text-muted-foreground hover:bg-muted/60",
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
 
         {/* Sub-Dashboard der Absagen-Ansicht: Alle / Kein Interesse / Andere */}
         {tab === "absage" && (

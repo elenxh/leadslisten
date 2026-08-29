@@ -518,6 +518,9 @@ export async function updateStatus(
     }
   }
 
+  // Kontaktversuch -> erledigte Wiedervorlage leeren (zukünftige bleiben).
+  if (istKontakt) await raeumeErledigteWiedervorlage(ac.admin, schuleId);
+
   await recomputeSchuleMarker(ac.admin, schuleId);
   revalidatePath("/dashboard");
   revalidatePath(`/schule/${schuleId}`);
@@ -621,6 +624,10 @@ export async function speichereAkquise(
     }
   }
 
+  // Kontaktversuch -> erledigte (heutige/vergangene) Wiedervorlage leeren.
+  // Eine im Formular neu gesetzte ZUKÜNFTIGE Wiedervorlage bleibt bestehen.
+  if (istKontakt) await raeumeErledigteWiedervorlage(ac.admin, schuleId);
+
   await recomputeSchuleMarker(ac.admin, schuleId);
   revalidatePath("/dashboard");
   revalidatePath(`/schule/${schuleId}`);
@@ -658,6 +665,7 @@ export async function protokolliereVorOrtTermin(input: {
   });
   if (error) return { ok: false, error: error.message };
 
+  await raeumeErledigteWiedervorlage(ac.admin, input.schuleId);
   await recomputeSchuleMarker(ac.admin, input.schuleId);
   revalidatePath("/dashboard");
   revalidatePath(`/schule/${input.schuleId}`);
@@ -694,6 +702,7 @@ export async function protokolliereEmail(input: {
   });
   if (error) return { ok: false, error: error.message };
 
+  await raeumeErledigteWiedervorlage(ac.admin, input.schuleId);
   await recomputeSchuleMarker(ac.admin, input.schuleId);
   revalidatePath("/dashboard");
   revalidatePath(`/schule/${input.schuleId}`);
@@ -776,12 +785,37 @@ export async function protokolliereAnruf(
     if (sErr) return { ok: false, error: sErr.message };
   }
 
+  // Erledigte Wiedervorlage leeren – aber nur, wenn im Dialog KEINE neue
+  // Wiedervorlage gesetzt wurde (die hätte Vorrang und bleibt bestehen).
+  if (!input.wiedervorlage) {
+    await raeumeErledigteWiedervorlage(ac.admin, input.schuleId);
+  }
+
   // Abgeleitete Felder (Marker + Ampel-Referenz) frisch aus dem Verlauf.
   await recomputeSchuleMarker(ac.admin, input.schuleId);
 
   revalidatePath("/dashboard");
   revalidatePath(`/schule/${input.schuleId}`);
   return { ok: true };
+}
+
+/**
+ * Nach einem protokollierten Kontaktversuch (Anruf/Status/E-Mail): eine
+ * ERLEDIGTE Wiedervorlage (Datum heute oder in der Vergangenheit) automatisch
+ * leeren – sie gilt als abgearbeitet; die SL setzt bei Bedarf eine neue.
+ * ZUKÜNFTIGE Wiedervorlagen bleiben unberührt (geparkt). Ein einziges
+ * bedingtes UPDATE, kein Read nötig.
+ */
+async function raeumeErledigteWiedervorlage(
+  admin: ReturnType<typeof createAdminClient>,
+  schuleId: string,
+): Promise<void> {
+  await admin
+    .from("schulen")
+    .update({ wiedervorlage_am: null })
+    .eq("id", schuleId)
+    .not("wiedervorlage_am", "is", null)
+    .lte("wiedervorlage_am", todayISO());
 }
 
 /**
