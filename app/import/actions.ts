@@ -8,9 +8,9 @@ import {
   parseTutorioWorkbook,
   normalizeName,
   tutorioInsertData,
-  TRAEGER_SCHULART,
   type TutorioRow,
 } from "@/lib/tutorio-import";
+import { traegerKategorieOderDefault } from "@/lib/schulart";
 
 export interface PreviewRow {
   sheet: string;
@@ -160,8 +160,11 @@ async function prepareImport(formData: FormData): Promise<Prepared> {
     skipped.push({ name: b.name, sheet: b.sheet, grund: "beispielzeile" });
   }
 
+  // In der Vorschau bei Trägern die Kategorie zeigen (informativer als „Träger").
   const anzeigeSchulart = (row: TutorioRow) =>
-    row.typ === "traeger" ? TRAEGER_SCHULART : row.schulart ?? "";
+    row.typ === "traeger"
+      ? traegerKategorieOderDefault(row.kategorie)
+      : row.schulart ?? "";
 
   for (const row of parsed.rows) {
     const key = normalizeName(row.name);

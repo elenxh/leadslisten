@@ -111,3 +111,30 @@ export const SCHULART_OPTIONS: string[] = [
   "Förderschule",
   "Sonstige",
 ];
+
+// =====================================================================
+// Träger-Kategorie: GESPEICHERTES Feld (schulen.traeger_kategorie), nur für
+// typ='traeger' relevant. Reine Übersicht/Filter, analog zu den Schularten.
+// Werte = Labels (menschenlesbar, deutsch). Reihenfolge = Reiter-Reihenfolge.
+// =====================================================================
+export const TRAEGER_KATEGORIEN = [
+  { value: "Kirchliche Gemeinde", label: "Kirchliche Gemeinde" },
+  { value: "Jugendeinrichtung", label: "Jugendeinrichtung" },
+  { value: "Verein", label: "Verein" },
+  { value: "Sonstige", label: "Sonstige" },
+] as const;
+
+export type TraegerKategorie = (typeof TRAEGER_KATEGORIEN)[number]["value"];
+
+export const TRAEGER_KATEGORIE_VALUES: readonly string[] =
+  TRAEGER_KATEGORIEN.map((k) => k.value);
+
+export const TRAEGER_KATEGORIE_DEFAULT: TraegerKategorie = "Sonstige";
+
+// Tolerant: unbekannte/leere Werte -> Default 'Sonstige'.
+export function traegerKategorieOderDefault(
+  v: string | null | undefined,
+): TraegerKategorie {
+  const s = (v ?? "").trim();
+  return (TRAEGER_KATEGORIE_VALUES.includes(s) ? s : TRAEGER_KATEGORIE_DEFAULT) as TraegerKategorie;
+}
