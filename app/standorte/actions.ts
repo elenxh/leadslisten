@@ -479,7 +479,6 @@ export async function updateStatus(
     .select("status, erstkontakt_am")
     .eq("id", schuleId)
     .single();
-  const alterStatus = (schule?.status as string | undefined) ?? null;
   const istKontakt = KONTAKT_STATUS.includes(status);
   const today = todayISO();
 
@@ -500,11 +499,9 @@ export async function updateStatus(
       (r) => (r.datum ?? "").slice(0, 10) === today,
     );
     if (!schonHeute) {
-      const cleanNotiz = (notiz ?? "").trim();
-      const geaendert = alterStatus !== status;
-      const text =
-        cleanNotiz ||
-        (geaendert ? `Status geändert auf ${status}` : `Status bestätigt: ${status}`);
+      // Kein generierter Fülltext mehr: ohne echte Notiz bleibt der Text leer
+      // (die UI zeigt dann nur Datum + Ergebnis).
+      const text = (notiz ?? "").trim() || null;
       const { error: aErr } = await ac.admin.from("anrufe").insert({
         schule_id: schuleId,
         leitung_id: user.id,
@@ -566,7 +563,6 @@ export async function speichereAkquise(
     .select("status, erstkontakt_am")
     .eq("id", schuleId)
     .single();
-  const alterStatus = (schule?.status as string | undefined) ?? null;
   const istKontakt = KONTAKT_STATUS.includes(input.status);
   const today = todayISO();
   const norm = (v: string | null) => {
@@ -605,11 +601,8 @@ export async function speichereAkquise(
       (r) => (r.datum ?? "").slice(0, 10) === today,
     );
     if (!schonHeute) {
-      const cleanNotiz = (input.callNotiz ?? "").trim();
-      const geaendert = alterStatus !== input.status;
-      const text =
-        cleanNotiz ||
-        (geaendert ? `Status geändert auf ${input.status}` : `Status bestätigt: ${input.status}`);
+      // Kein generierter Fülltext mehr: ohne echte Notiz bleibt der Text leer.
+      const text = (input.callNotiz ?? "").trim() || null;
       const { error: aErr } = await ac.admin.from("anrufe").insert({
         schule_id: schuleId,
         leitung_id: user.id,

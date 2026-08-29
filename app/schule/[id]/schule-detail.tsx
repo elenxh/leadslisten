@@ -588,7 +588,7 @@ export function SchuleDetail({
               {/* d) weniger wichtige Felder unten. */}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label htmlFor="erstkontakt" className="text-xs text-muted-foreground">Erstkontakt am</Label>
+                  <Label htmlFor="erstkontakt" className="text-xs text-muted-foreground">Kontakt</Label>
                   <Input id="erstkontakt" type="date" value={erstkontakt} onChange={(e) => setErstkontakt(e.target.value)} />
                 </div>
                 <div className="space-y-1.5">
@@ -682,7 +682,7 @@ export function SchuleDetail({
                 <StatusBadge status={statusVal} />
               </div>
               <InfoRow icon={Clock3} label="Wiedervorlage am">{schule.wiedervorlage_am ? formatDate(schule.wiedervorlage_am) : "—"}</InfoRow>
-              <InfoRow icon={Clock3} label="Erstkontakt am">{schule.erstkontakt_am ? formatDate(schule.erstkontakt_am) : "—"}</InfoRow>
+              <InfoRow icon={Clock3} label="Kontakt">{schule.erstkontakt_am ? formatDate(schule.erstkontakt_am) : "—"}</InfoRow>
               <InfoRow icon={GraduationCap} label="Schulart">{schule.schulart ?? "—"}</InfoRow>
               {schule.akquise_notiz && (
                 <div>
