@@ -163,13 +163,14 @@ function NavGroup({
   dot?: boolean;
   children: React.ReactNode;
 }) {
-  // Rein klick-gesteuert: base-ui öffnet/schließt per Klick auf den Auslöser,
-  // schließt bei Klick außerhalb, Escape oder Auswahl eines Unterpunkts.
-  // KEIN Hover, KEIN Schließ-Timer. `open` dient nur der Hervorhebung.
+  // Rein klick-gesteuert und UNKONTROLLIERT: base-ui verwaltet Öffnen/Schließen
+  // selbst (schließt den Auslöser korrekt vom Outside-Dismiss aus — genau wie
+  // das funktionierende Benutzer-Menü). `open` wird nur beobachtet (Hervorhebung),
+  // NICHT kontrolliert, sonst schließt der öffnende Klick sofort wieder.
   const [open, setOpen] = useState(false);
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
+    <DropdownMenu onOpenChange={setOpen}>
       <DropdownMenuTrigger
         render={
           <Button
