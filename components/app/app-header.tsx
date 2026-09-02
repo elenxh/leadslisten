@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -163,63 +163,32 @@ function NavGroup({
   dot?: boolean;
   children: React.ReactNode;
 }) {
+  // Rein klick-gesteuert: base-ui öffnet/schließt per Klick auf den Auslöser,
+  // schließt bei Klick außerhalb, Escape oder Auswahl eines Unterpunkts.
+  // KEIN Hover, KEIN Schließ-Timer. `open` dient nur der Hervorhebung.
   const [open, setOpen] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pinned = useRef(false); // per Klick geöffnet -> bleibt bis Klick/außerhalb
-  const clickToggle = useRef(false); // markiert klick-getriebene Änderung
-
-  const clear = () => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = null;
-  };
-  // Hover: sofort öffnen, Schließ-Timer abbrechen (Ober- ODER Untermenü betreten).
-  const enter = () => {
-    clear();
-    setOpen(true);
-  };
-  // Hover-Ende: erst nach 300 ms schließen (überbrückt die Lücke); nie wenn gepinnt.
-  const leave = () => {
-    clear();
-    if (pinned.current) return;
-    timer.current = setTimeout(() => setOpen(false), 300);
-  };
-  // Klick/Escape/außerhalb/Item: base-ui meldet den Zielzustand.
-  const handleOpenChange = (next: boolean) => {
-    clear();
-    setOpen(next);
-    pinned.current = next ? clickToggle.current : false;
-    clickToggle.current = false;
-  };
 
   return (
-    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
-      <span onMouseEnter={enter} onMouseLeave={leave} className="inline-flex">
-        <DropdownMenuTrigger
-          onClick={() => {
-            clickToggle.current = true;
-          }}
-          render={
-            <Button
-              variant="ghost"
-              size="sm"
-              className={cn("relative", active && "bg-muted font-medium text-foreground")}
-            />
-          }
-        >
-          {label}
-          <ChevronDown className="ml-0.5 size-3.5 opacity-60" />
-          {dot && (
-            <span className="absolute right-0.5 top-0.5 size-2 rounded-full bg-primary" data-testid="nav-dot" />
-          )}
-        </DropdownMenuTrigger>
-      </span>
-      <DropdownMenuContent
-        align="start"
-        sideOffset={2}
-        className="w-60"
-        onMouseEnter={enter}
-        onMouseLeave={leave}
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              "relative",
+              (active || open) && "bg-muted font-medium text-foreground",
+            )}
+          />
+        }
       >
+        {label}
+        <ChevronDown className="ml-0.5 size-3.5 opacity-60" />
+        {dot && (
+          <span className="absolute right-0.5 top-0.5 size-2 rounded-full bg-primary" data-testid="nav-dot" />
+        )}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" sideOffset={4} className="w-60">
         {children}
       </DropdownMenuContent>
     </DropdownMenu>
