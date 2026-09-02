@@ -154,6 +154,26 @@ export interface AufgabeErledigung {
   erledigt_am: string | null;
 }
 
+export interface SlOrdner {
+  id: string;
+  leitung_id: string;
+  name: string;
+  parent_id: string | null;
+  erstellt_am: string;
+}
+
+export interface SlDatei {
+  id: string;
+  leitung_id: string;
+  ordner_id: string | null;
+  dateiname: string;
+  storage_pfad: string;
+  groesse: number;
+  mime_type: string | null;
+  hochgeladen_von: string | null;
+  erstellt_am: string;
+}
+
 // --- Stundennachweis / KPI ------------------------------------------
 export interface Vertragsmodell {
   id: string;
