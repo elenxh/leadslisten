@@ -163,22 +163,21 @@ function NavGroup({
   dot?: boolean;
   children: React.ReactNode;
 }) {
-  // Rein klick-gesteuert und UNKONTROLLIERT: base-ui verwaltet Öffnen/Schließen
-  // selbst (schließt den Auslöser korrekt vom Outside-Dismiss aus — genau wie
-  // das funktionierende Benutzer-Menü). `open` wird nur beobachtet (Hervorhebung),
-  // NICHT kontrolliert, sonst schließt der öffnende Klick sofort wieder.
-  const [open, setOpen] = useState(false);
-
+  // Bewusst OHNE React-State/onOpenChange — exakt wie das funktionierende
+  // Benutzer-Menü. base-ui verwaltet Öffnen/Schließen komplett selbst; die
+  // Hervorhebung des offenen Menüs läuft rein über das CSS-Attribut
+  // `data-popup-open`, das base-ui auf den Auslöser setzt. So gibt es beim
+  // öffnenden Klick KEIN Re-Render des Auslösers, das etwas stören könnte.
   return (
-    <DropdownMenu onOpenChange={setOpen}>
+    <DropdownMenu>
       <DropdownMenuTrigger
         render={
           <Button
             variant="ghost"
             size="sm"
             className={cn(
-              "relative",
-              (active || open) && "bg-muted font-medium text-foreground",
+              "relative data-popup-open:bg-muted data-popup-open:font-medium data-popup-open:text-foreground",
+              active && "bg-muted font-medium text-foreground",
             )}
           />
         }
