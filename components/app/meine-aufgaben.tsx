@@ -7,7 +7,7 @@ import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
 import { formatDate, todayISO } from "@/lib/dates";
-import { setAufgabeErledigt } from "@/app/team/actions";
+import { setAufgabeErledigt } from "@/app/aufgaben/actions";
 
 export interface AufgabeAnzeige {
   id: string;

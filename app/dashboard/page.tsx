@@ -11,6 +11,7 @@ import type {
   Standort,
   StandortMitVorschlag,
 } from "@/lib/types";
+import { ladeOffeneAufgabenFuer } from "@/lib/aufgaben-data";
 import { DashboardClient } from "./dashboard-client";
 
 export const dynamic = "force-dynamic";
@@ -98,18 +99,9 @@ export default async function DashboardPage() {
     .order("created_at", { ascending: false });
   const broadcasts = (broadcastRows ?? []) as Broadcast[];
 
-  // Offene Aufgaben der eingeloggten Person (RLS: nur eigene). Fällig zuerst.
-  const { data: aufgabenRows } = await supabase
-    .from("gespraechsprotokoll_aufgaben")
-    .select("id, was, bis_wann")
-    .eq("zugewiesen_an", me.id)
-    .eq("erledigt", false)
-    .order("bis_wann", { ascending: true });
-  const meineAufgaben = (aufgabenRows ?? []) as {
-    id: string;
-    was: string;
-    bis_wann: string;
-  }[];
+  // Offene Aufgaben der eingeloggten Person. Gemeinsame Aufgaben sind für SLs;
+  // dem Admin werden sie in „Meine Aufgaben" nicht als eigene gezeigt.
+  const meineAufgaben = await ladeOffeneAufgabenFuer(supabase, me.id, !admin);
 
   return (
     <>

@@ -125,17 +125,33 @@ export interface Gespraechsprotokoll {
   updated_at: string;
 }
 
-// Aufgabe aus einem Protokoll: pro SL zuweisbar, abhakbar. KEINE
-// Vergütungszeit (erzeugt keine Stunden/Calls, nicht in der Abrechnung).
-export interface ProtokollAufgabe {
+// Eigenständige Aufgabe (To-Do). KEINE Vergütungszeit — erzeugt keine
+// Stunden/Calls, nicht in Stundennachweis/Abrechnung.
+export type AufgabeTyp = "einzel" | "gemeinsam";
+export type AufgabeQuelle = "manuell" | "protokoll";
+
+export interface Aufgabe {
   id: string;
-  protokoll_id: string;
   was: string;
-  zugewiesen_an: string; // leitung_id
   bis_wann: string; // ISO date
-  erledigt: boolean;
+  typ: AufgabeTyp;
+  zugewiesen_an: string | null; // leitung_id (null bei gemeinsam)
+  ersteller_id: string | null;
+  quelle: AufgabeQuelle;
+  protokoll_id: string | null;
+  kommentar_admin: string | null;
+  kommentar_sl: string | null;
+  erledigt: boolean; // nur typ='einzel'
   erledigt_am: string | null;
   created_at: string;
+  updated_at: string;
+}
+
+export interface AufgabeErledigung {
+  aufgabe_id: string;
+  leitung_id: string;
+  erledigt: boolean;
+  erledigt_am: string | null;
 }
 
 // --- Stundennachweis / KPI ------------------------------------------

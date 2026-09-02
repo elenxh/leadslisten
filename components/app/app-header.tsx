@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { CalendarDays, ClipboardList, Clock, FileSpreadsheet, FileUp, LogOut, ShieldCheck, Upload, Users, Wallet } from "lucide-react";
+import { CalendarDays, ClipboardList, Clock, FileSpreadsheet, FileUp, ListTodo, LogOut, ShieldCheck, Upload, Users, Wallet } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -81,6 +81,10 @@ export function AppHeader({ leitung }: { leitung: Leitung }) {
           <Button variant="ghost" size="sm" render={<Link href="/stundennachweis" />}>
             <Clock className="size-4 sm:mr-1.5" />
             <span className="hidden sm:inline">Stundennachweis</span>
+          </Button>
+          <Button variant="ghost" size="sm" render={<Link href="/aufgaben" />}>
+            <ListTodo className="size-4 sm:mr-1.5" />
+            <span className="hidden sm:inline">Aufgaben</span>
           </Button>
           <Button variant="ghost" size="sm" render={<Link href="/import" />}>
             <FileUp className="size-4 sm:mr-1.5" />

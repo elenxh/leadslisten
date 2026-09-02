@@ -128,17 +128,20 @@ function cleanAufgaben(
   return { ok: true, rows };
 }
 
-// Gleicht die Aufgaben eines Protokolls mit der Eingabe ab: bestehende (per id)
-// aktualisieren (erledigt-Status BLEIBT), neue einfügen, entfernte löschen.
+// Gleicht die Protokoll-Aufgaben (quelle='protokoll') mit der Eingabe ab:
+// bestehende (per id) aktualisieren (erledigt-Status BLEIBT), neue einfügen,
+// entfernte löschen. Schreibt in die allgemeine `aufgaben`-Tabelle.
 async function syncAufgaben(
   admin: AdminClient,
   protokollId: string,
+  erstellerId: string,
   rows: AufgabeInput[],
 ): Promise<SimpleResult> {
   const { data: vorhanden } = await admin
-    .from("gespraechsprotokoll_aufgaben")
+    .from("aufgaben")
     .select("id")
-    .eq("protokoll_id", protokollId);
+    .eq("protokoll_id", protokollId)
+    .eq("quelle", "protokoll");
   const bestehendeIds = new Set(((vorhanden ?? []) as { id: string }[]).map((r) => r.id));
   const behalten = new Set<string>();
 
@@ -146,16 +149,19 @@ async function syncAufgaben(
     if (r.id && bestehendeIds.has(r.id)) {
       behalten.add(r.id);
       const { error } = await admin
-        .from("gespraechsprotokoll_aufgaben")
+        .from("aufgaben")
         .update({ was: r.was, zugewiesen_an: r.zugewiesen_an, bis_wann: r.bis_wann })
         .eq("id", r.id);
       if (error) return { ok: false, error: error.message };
     } else {
-      const { error } = await admin.from("gespraechsprotokoll_aufgaben").insert({
-        protokoll_id: protokollId,
+      const { error } = await admin.from("aufgaben").insert({
         was: r.was,
-        zugewiesen_an: r.zugewiesen_an,
         bis_wann: r.bis_wann,
+        typ: "einzel",
+        zugewiesen_an: r.zugewiesen_an,
+        ersteller_id: erstellerId,
+        quelle: "protokoll",
+        protokoll_id: protokollId,
       });
       if (error) return { ok: false, error: error.message };
     }
@@ -163,10 +169,7 @@ async function syncAufgaben(
 
   const zuLoeschen = Array.from(bestehendeIds).filter((id) => !behalten.has(id));
   if (zuLoeschen.length > 0) {
-    const { error } = await admin
-      .from("gespraechsprotokoll_aufgaben")
-      .delete()
-      .in("id", zuLoeschen);
+    const { error } = await admin.from("aufgaben").delete().in("id", zuLoeschen);
     if (error) return { ok: false, error: error.message };
   }
   return { ok: true };
@@ -207,12 +210,13 @@ export async function createProtokoll(
   if (felder.aufgaben !== undefined) {
     const clean = cleanAufgaben(felder.aufgaben, leitungId, user.isAdmin);
     if (!clean.ok) return clean;
-    const sync = await syncAufgaben(ac.admin, neueId, clean.rows);
+    const sync = await syncAufgaben(ac.admin, neueId, user.id, clean.rows);
     if (!sync.ok) return sync;
   }
 
   revalidatePath(`/team/${leitungId}`);
   revalidatePath("/dashboard");
+  revalidatePath("/aufgaben");
   return { ok: true, id: neueId };
 }
 
@@ -251,49 +255,13 @@ export async function updateProtokoll(
   if (felder.aufgaben !== undefined) {
     const clean = cleanAufgaben(felder.aufgaben, ownerId, user.isAdmin);
     if (!clean.ok) return clean;
-    const sync = await syncAufgaben(ac.admin, id, clean.rows);
+    const sync = await syncAufgaben(ac.admin, id, user.id, clean.rows);
     if (!sync.ok) return sync;
   }
 
   revalidatePath(`/team/${ownerId}`);
   revalidatePath("/dashboard");
-  return { ok: true };
-}
-
-/**
- * Hakt eine Aufgabe ab bzw. wieder auf. Admin für alle; SL nur für die IHR
- * zugewiesenen Aufgaben. Reine Status-/Erinnerungsfunktion — KEINE Zeitwirkung.
- */
-export async function setAufgabeErledigt(
-  aufgabeId: string,
-  erledigt: boolean,
-): Promise<SimpleResult> {
-  const user = await currentUser();
-  if (!user) return { ok: false, error: "Nicht angemeldet." };
-
-  const ac = adminClientOrError();
-  if (!ac.ok) return ac;
-
-  const { data: aufgabe, error: readErr } = await ac.admin
-    .from("gespraechsprotokoll_aufgaben")
-    .select("zugewiesen_an")
-    .eq("id", aufgabeId)
-    .single();
-  if (readErr || !aufgabe)
-    return { ok: false, error: "Aufgabe nicht gefunden." };
-
-  const zugewiesen = (aufgabe as { zugewiesen_an: string }).zugewiesen_an;
-  if (!user.isAdmin && user.id !== zugewiesen)
-    return { ok: false, error: "Keine Berechtigung." };
-
-  const { error } = await ac.admin
-    .from("gespraechsprotokoll_aufgaben")
-    .update({ erledigt, erledigt_am: erledigt ? new Date().toISOString() : null })
-    .eq("id", aufgabeId);
-  if (error) return { ok: false, error: error.message };
-
-  revalidatePath("/dashboard");
-  revalidatePath("/stundennachweis");
+  revalidatePath("/aufgaben");
   return { ok: true };
 }
 

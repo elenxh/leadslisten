@@ -43,10 +43,10 @@ import {
   type ProtokollInput,
 } from "@/app/team/actions";
 import type {
+  Aufgabe,
   Gespraechsprotokoll,
   Leitung,
   ProtokollAmpel,
-  ProtokollAufgabe,
 } from "@/lib/types";
 
 const AMPEL_META: Record<ProtokollAmpel, { label: string; dot: string }> = {
@@ -79,7 +79,7 @@ export function ProtokolleClient({
   owner: Pick<Leitung, "id" | "name" | "kuerzel" | "farbe">;
   protokolle: Gespraechsprotokoll[];
   leitungen: Pick<Leitung, "id" | "name">[];
-  aufgabenByProtokoll: Record<string, ProtokollAufgabe[]>;
+  aufgabenByProtokoll: Record<string, Aufgabe[]>;
 }) {
   const [addingNew, setAddingNew] = useState(false);
   const meIsAdmin = me.rolle === "admin";
@@ -170,7 +170,7 @@ interface FormState {
 
 function initialState(
   p: Gespraechsprotokoll | undefined,
-  aufgaben: ProtokollAufgabe[],
+  aufgaben: Aufgabe[],
 ): FormState {
   return {
     datum: p?.datum?.slice(0, 10) ?? todayISO(),
@@ -182,7 +182,7 @@ function initialState(
     aufgaben: aufgaben.map((a) => ({
       id: a.id,
       was: a.was,
-      zugewiesen_an: a.zugewiesen_an,
+      zugewiesen_an: a.zugewiesen_an ?? "",
       bis_wann: a.bis_wann.slice(0, 10),
       erledigt: a.erledigt,
     })),
@@ -202,7 +202,7 @@ function ProtokollCard({
   leitungId: string;
   protokoll?: Gespraechsprotokoll;
   leitungen: Pick<Leitung, "id" | "name">[];
-  aufgaben: ProtokollAufgabe[];
+  aufgaben: Aufgabe[];
   initialOpen?: boolean;
   onClose?: () => void;
 }) {

@@ -24,6 +24,7 @@ import type { AdminKommentar } from "@/lib/types";
 import { OrdnerNavigation, type MonatsKachel } from "./ordner-navigation";
 import { MonatClient } from "./[zeitraum]/monat-client";
 import { MeineAufgabenBox } from "@/components/app/meine-aufgaben";
+import { ladeOffeneAufgabenFuer } from "@/lib/aufgaben-data";
 
 export const dynamic = "force-dynamic";
 
@@ -161,19 +162,8 @@ export default async function StundennachweisSLPage({
   const prevKey = zeitraumFuer(addDaysISO(zeitraum.startISO, -1)).key;
   const nextKey = zeitraumFuer(addDaysISO(zeitraum.endISO, 1)).key;
 
-  // Offene Aufgaben dieser SL (nur Anzeige, keine Zeitwirkung). RLS: SL sieht
-  // eigene; Admin sieht alle (hier auf die betrachtete SL gefiltert).
-  const { data: aufgabenData } = await supabase
-    .from("gespraechsprotokoll_aufgaben")
-    .select("id, was, bis_wann")
-    .eq("zugewiesen_an", targetId)
-    .eq("erledigt", false)
-    .order("bis_wann", { ascending: true });
-  const offeneAufgaben = (aufgabenData ?? []) as {
-    id: string;
-    was: string;
-    bis_wann: string;
-  }[];
+  // Offene Aufgaben dieser SL (nur Anzeige, keine Zeitwirkung).
+  const offeneAufgaben = await ladeOffeneAufgabenFuer(supabase, targetId);
 
   return (
     <>

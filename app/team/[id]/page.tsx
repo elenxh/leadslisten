@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { AppHeader } from "@/components/app/app-header";
 import { isAdmin, requireLeitung } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import type { Gespraechsprotokoll, Leitung, ProtokollAufgabe } from "@/lib/types";
+import type { Aufgabe, Gespraechsprotokoll, Leitung } from "@/lib/types";
 import { ProtokolleClient } from "./protokolle-client";
 
 export const dynamic = "force-dynamic";
@@ -41,18 +41,19 @@ export default async function TeamLeitungPage({
 
   const protokolleListe = (protokolle ?? []) as Gespraechsprotokoll[];
 
-  // Aufgaben aller dieser Protokolle laden + nach Protokoll gruppieren.
-  const aufgabenByProtokoll: Record<string, ProtokollAufgabe[]> = {};
+  // Protokoll-Aufgaben (quelle='protokoll') laden + nach Protokoll gruppieren.
+  const aufgabenByProtokoll: Record<string, Aufgabe[]> = {};
   const protokollIds = protokolleListe.map((p) => p.id);
   if (protokollIds.length > 0) {
     const { data: aufgabenData } = await supabase
-      .from("gespraechsprotokoll_aufgaben")
+      .from("aufgaben")
       .select("*")
+      .eq("quelle", "protokoll")
       .in("protokoll_id", protokollIds)
       .order("bis_wann", { ascending: true })
       .order("created_at", { ascending: true });
-    for (const a of (aufgabenData ?? []) as ProtokollAufgabe[]) {
-      (aufgabenByProtokoll[a.protokoll_id] ??= []).push(a);
+    for (const a of (aufgabenData ?? []) as Aufgabe[]) {
+      if (a.protokoll_id) (aufgabenByProtokoll[a.protokoll_id] ??= []).push(a);
     }
   }
 

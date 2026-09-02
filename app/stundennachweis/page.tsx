@@ -7,7 +7,7 @@ import { LeitungAvatar } from "@/components/app/leitung-avatar";
 import { Card } from "@/components/ui/card";
 import { isAdmin, requireLeitung } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { todayISO } from "@/lib/dates";
+import { ladeAufgabenUebersicht } from "@/lib/aufgaben-data";
 import type { Leitung } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -30,20 +30,10 @@ export default async function StundennachweisPage() {
   const leitungen = (data ?? []) as Pick<Leitung, "id" | "name" | "kuerzel" | "farbe">[];
 
   // Offene Aufgaben je SL (Admin-Übersicht: wer hat wie viel offen/überfällig).
-  const heute = todayISO();
-  const offenByLeitung = new Map<string, { offen: number; ueberfaellig: number }>();
-  {
-    const { data: aufgabenData } = await supabase
-      .from("gespraechsprotokoll_aufgaben")
-      .select("zugewiesen_an, bis_wann")
-      .eq("erledigt", false);
-    for (const a of (aufgabenData ?? []) as { zugewiesen_an: string; bis_wann: string }[]) {
-      const e = offenByLeitung.get(a.zugewiesen_an) ?? { offen: 0, ueberfaellig: 0 };
-      e.offen += 1;
-      if (a.bis_wann.slice(0, 10) < heute) e.ueberfaellig += 1;
-      offenByLeitung.set(a.zugewiesen_an, e);
-    }
-  }
+  const offenByLeitung = await ladeAufgabenUebersicht(
+    supabase,
+    leitungen.map((l) => l.id),
+  );
 
   return (
     <>
