@@ -165,19 +165,39 @@ function NavGroup({
 }) {
   const [open, setOpen] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const enter = () => {
+  const pinned = useRef(false); // per Klick geöffnet -> bleibt bis Klick/außerhalb
+  const clickToggle = useRef(false); // markiert klick-getriebene Änderung
+
+  const clear = () => {
     if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  };
+  // Hover: sofort öffnen, Schließ-Timer abbrechen (Ober- ODER Untermenü betreten).
+  const enter = () => {
+    clear();
     setOpen(true);
   };
+  // Hover-Ende: erst nach 300 ms schließen (überbrückt die Lücke); nie wenn gepinnt.
   const leave = () => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setOpen(false), 120);
+    clear();
+    if (pinned.current) return;
+    timer.current = setTimeout(() => setOpen(false), 300);
+  };
+  // Klick/Escape/außerhalb/Item: base-ui meldet den Zielzustand.
+  const handleOpenChange = (next: boolean) => {
+    clear();
+    setOpen(next);
+    pinned.current = next ? clickToggle.current : false;
+    clickToggle.current = false;
   };
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
+    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
       <span onMouseEnter={enter} onMouseLeave={leave} className="inline-flex">
         <DropdownMenuTrigger
+          onClick={() => {
+            clickToggle.current = true;
+          }}
           render={
             <Button
               variant="ghost"
@@ -193,7 +213,13 @@ function NavGroup({
           )}
         </DropdownMenuTrigger>
       </span>
-      <DropdownMenuContent align="start" className="w-60" onMouseEnter={enter} onMouseLeave={leave}>
+      <DropdownMenuContent
+        align="start"
+        sideOffset={2}
+        className="w-60"
+        onMouseEnter={enter}
+        onMouseLeave={leave}
+      >
         {children}
       </DropdownMenuContent>
     </DropdownMenu>
