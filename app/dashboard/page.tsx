@@ -11,6 +11,7 @@ import type {
   Standort,
   StandortMitVorschlag,
 } from "@/lib/types";
+import { ladeOffeneAufgabenFuer } from "@/lib/aufgaben-data";
 import { DashboardClient } from "./dashboard-client";
 
 export const dynamic = "force-dynamic";
@@ -98,6 +99,10 @@ export default async function DashboardPage() {
     .order("created_at", { ascending: false });
   const broadcasts = (broadcastRows ?? []) as Broadcast[];
 
+  // Offene Aufgaben der eingeloggten Person. Gemeinsame Aufgaben sind für SLs;
+  // dem Admin werden sie in „Meine Aufgaben" nicht als eigene gezeigt.
+  const meineAufgaben = await ladeOffeneAufgabenFuer(supabase, me.id, !admin);
+
   return (
     <>
       <AppHeader leitung={me} />
@@ -114,6 +119,7 @@ export default async function DashboardPage() {
           leitungen={leitungen}
           farbLegende={farbLegende}
           broadcasts={broadcasts}
+          meineAufgaben={meineAufgaben}
         />
       )}
     </>

@@ -23,6 +23,8 @@ import { sammleEintraege } from "@/lib/stundennachweis-data";
 import type { AdminKommentar } from "@/lib/types";
 import { OrdnerNavigation, type MonatsKachel } from "./ordner-navigation";
 import { MonatClient } from "./[zeitraum]/monat-client";
+import { MeineAufgabenBox } from "@/components/app/meine-aufgaben";
+import { ladeOffeneAufgabenFuer } from "@/lib/aufgaben-data";
 
 export const dynamic = "force-dynamic";
 
@@ -160,6 +162,9 @@ export default async function StundennachweisSLPage({
   const prevKey = zeitraumFuer(addDaysISO(zeitraum.startISO, -1)).key;
   const nextKey = zeitraumFuer(addDaysISO(zeitraum.endISO, 1)).key;
 
+  // Offene Aufgaben dieser SL (nur Anzeige, keine Zeitwirkung).
+  const offeneAufgaben = await ladeOffeneAufgabenFuer(supabase, targetId);
+
   return (
     <>
       <AppHeader leitung={me} />
@@ -179,6 +184,12 @@ export default async function StundennachweisSLPage({
             Monat wählen — der Stundennachweis erscheint direkt darunter.
           </p>
         </div>
+
+        <MeineAufgabenBox
+          aufgaben={offeneAufgaben}
+          readOnly
+          titel={admin ? `Offene Aufgaben – ${(sl as { name: string }).name}` : "Meine Aufgaben"}
+        />
 
         <OrdnerNavigation
           slId={params.sl}

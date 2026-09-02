@@ -26,6 +26,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { LeitungAvatar } from "@/components/app/leitung-avatar";
 import { cn } from "@/lib/utils";
 import { formatDate, todayISO } from "@/lib/dates";
@@ -36,10 +43,10 @@ import {
   type ProtokollInput,
 } from "@/app/team/actions";
 import type {
+  Aufgabe,
   Gespraechsprotokoll,
   Leitung,
   ProtokollAmpel,
-  ProtokollSchritt,
 } from "@/lib/types";
 
 const AMPEL_META: Record<ProtokollAmpel, { label: string; dot: string }> = {
@@ -65,10 +72,14 @@ export function ProtokolleClient({
   me,
   owner,
   protokolle,
+  leitungen,
+  aufgabenByProtokoll,
 }: {
   me: Leitung;
   owner: Pick<Leitung, "id" | "name" | "kuerzel" | "farbe">;
   protokolle: Gespraechsprotokoll[];
+  leitungen: Pick<Leitung, "id" | "name">[];
+  aufgabenByProtokoll: Record<string, Aufgabe[]>;
 }) {
   const [addingNew, setAddingNew] = useState(false);
   const meIsAdmin = me.rolle === "admin";
@@ -110,6 +121,8 @@ export function ProtokolleClient({
         {addingNew && (
           <ProtokollCard
             leitungId={owner.id}
+            leitungen={leitungen}
+            aufgaben={[]}
             initialOpen
             onClose={() => setAddingNew(false)}
           />
@@ -122,11 +135,25 @@ export function ProtokolleClient({
         )}
 
         {protokolle.map((p) => (
-          <ProtokollCard key={p.id} leitungId={owner.id} protokoll={p} />
+          <ProtokollCard
+            key={p.id}
+            leitungId={owner.id}
+            protokoll={p}
+            leitungen={leitungen}
+            aufgaben={aufgabenByProtokoll[p.id] ?? []}
+          />
         ))}
       </div>
     </main>
   );
+}
+
+interface AufgabeForm {
+  id?: string;
+  was: string;
+  zugewiesen_an: string;
+  bis_wann: string;
+  erledigt?: boolean;
 }
 
 interface FormState {
@@ -135,14 +162,16 @@ interface FormState {
   thema: string;
   inhalt: string;
   ergebnis: string;
-  naechste_schritte: string;
-  schritte: ProtokollSchritt[];
+  aufgaben: AufgabeForm[];
   wiedervorlage_am: string;
   ampel: ProtokollAmpel | null;
   dauer: string;
 }
 
-function initialState(p?: Gespraechsprotokoll): FormState {
+function initialState(
+  p: Gespraechsprotokoll | undefined,
+  aufgaben: Aufgabe[],
+): FormState {
   return {
     datum: p?.datum?.slice(0, 10) ?? todayISO(),
     uhrzeit: p?.uhrzeit ?? "",
@@ -150,8 +179,13 @@ function initialState(p?: Gespraechsprotokoll): FormState {
     thema: p?.thema ?? "",
     inhalt: p?.inhalt ?? "",
     ergebnis: p?.ergebnis ?? "",
-    naechste_schritte: p?.naechste_schritte ?? "",
-    schritte: p?.schritte?.map((s) => ({ ...s })) ?? [],
+    aufgaben: aufgaben.map((a) => ({
+      id: a.id,
+      was: a.was,
+      zugewiesen_an: a.zugewiesen_an ?? "",
+      bis_wann: a.bis_wann.slice(0, 10),
+      erledigt: a.erledigt,
+    })),
     wiedervorlage_am: p?.wiedervorlage_am?.slice(0, 10) ?? "",
     ampel: p?.ampel ?? null,
   };
@@ -160,38 +194,46 @@ function initialState(p?: Gespraechsprotokoll): FormState {
 function ProtokollCard({
   leitungId,
   protokoll,
+  leitungen,
+  aufgaben,
   initialOpen = false,
   onClose,
 }: {
   leitungId: string;
   protokoll?: Gespraechsprotokoll;
+  leitungen: Pick<Leitung, "id" | "name">[];
+  aufgaben: Aufgabe[];
   initialOpen?: boolean;
   onClose?: () => void;
 }) {
   const router = useRouter();
   const isNew = !protokoll;
   const [open, setOpen] = useState(initialOpen);
-  const [form, setForm] = useState<FormState>(() => initialState(protokoll));
+  const [form, setForm] = useState<FormState>(() => initialState(protokoll, aufgaben));
   const [pending, start] = useTransition();
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
-  const dirty = JSON.stringify(form) !== JSON.stringify(initialState(protokoll));
+  const dirty =
+    JSON.stringify(form) !== JSON.stringify(initialState(protokoll, aufgaben));
 
-  function addSchritt() {
-    set("schritte", [...form.schritte, { was: "", wer: "", bis_wann: "" }]);
+  function addAufgabe() {
+    set("aufgaben", [
+      ...form.aufgaben,
+      { was: "", zugewiesen_an: leitungId, bis_wann: "" },
+    ]);
   }
-  function setSchritt(i: number, k: keyof ProtokollSchritt, v: string) {
+  function setAufgabe(i: number, k: keyof AufgabeForm, v: string) {
     set(
-      "schritte",
-      form.schritte.map((s, idx) => (idx === i ? { ...s, [k]: v } : s)),
+      "aufgaben",
+      form.aufgaben.map((a, idx) => (idx === i ? { ...a, [k]: v } : a)),
     );
   }
-  function removeSchritt(i: number) {
+  function removeAufgabe(i: number) {
     set(
-      "schritte",
-      form.schritte.filter((_, idx) => idx !== i),
+      "aufgaben",
+      form.aufgaben.filter((_, idx) => idx !== i),
     );
   }
 
@@ -202,8 +244,12 @@ function ProtokollCard({
       thema: form.thema,
       inhalt: form.inhalt,
       ergebnis: form.ergebnis,
-      naechste_schritte: form.naechste_schritte,
-      schritte: form.schritte,
+      aufgaben: form.aufgaben.map((a) => ({
+        id: a.id,
+        was: a.was,
+        zugewiesen_an: a.zugewiesen_an,
+        bis_wann: a.bis_wann,
+      })),
       wiedervorlage_am: form.wiedervorlage_am,
       ampel: form.ampel,
       dauer_minuten: form.dauer ? Number(form.dauer) : null,
@@ -336,59 +382,70 @@ function ProtokollCard({
             />
           </div>
 
-          <div className="space-y-1.5">
-            <Label>Nächste Schritte</Label>
-            <Textarea
-              rows={3}
-              value={form.naechste_schritte}
-              onChange={(e) => set("naechste_schritte", e.target.value)}
-              data-testid="f-naechste"
-            />
-          </div>
-
-          {/* Tabelle Nächste Schritte */}
+          {/* Nächste Schritte – Aufgaben (was / wer / bis wann). Zuweisbar,
+              abhakbar, KEINE Vergütungszeit. */}
           <div className="space-y-2">
             <Label>Nächste Schritte – Aufgaben</Label>
-            {form.schritte.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Aufgaben pro Person mit Frist. Erscheinen bei der SL als „Meine
+              Aufgaben“. Keine Vergütungszeit.
+            </p>
+            {form.aufgaben.length > 0 && (
               <div className="space-y-2">
-                <div className="hidden grid-cols-[1fr_1fr_1fr_auto] gap-2 px-1 text-xs text-muted-foreground sm:grid">
+                <div className="hidden grid-cols-[1fr_10rem_9rem_auto] gap-2 px-1 text-xs text-muted-foreground sm:grid">
                   <span>Was</span>
                   <span>Wer</span>
                   <span>Bis wann</span>
                   <span />
                 </div>
-                {form.schritte.map((s, i) => (
+                {form.aufgaben.map((a, i) => (
                   <div
-                    key={i}
-                    className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_1fr_auto]"
-                    data-testid="schritt-row"
+                    key={a.id ?? `neu-${i}`}
+                    className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_10rem_9rem_auto]"
+                    data-testid="aufgabe-row"
                   >
                     <Input
-                      placeholder="Was"
-                      value={s.was}
-                      onChange={(e) => setSchritt(i, "was", e.target.value)}
-                      data-testid="schritt-was"
+                      placeholder="Was ist zu tun?"
+                      value={a.was}
+                      onChange={(e) => setAufgabe(i, "was", e.target.value)}
+                      data-testid="aufgabe-was"
                     />
+                    <Select
+                      value={a.zugewiesen_an}
+                      onValueChange={(v) => setAufgabe(i, "zugewiesen_an", v as string)}
+                    >
+                      <SelectTrigger data-testid="aufgabe-wer">
+                        <SelectValue placeholder="Wer">
+                          {(v: string) => leitungen.find((l) => l.id === v)?.name ?? "Wer"}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {leitungen.map((l) => (
+                          <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <Input
-                      placeholder="Wer"
-                      value={s.wer}
-                      onChange={(e) => setSchritt(i, "wer", e.target.value)}
-                    />
-                    <Input
-                      placeholder="Bis wann"
-                      value={s.bis_wann}
-                      onChange={(e) => setSchritt(i, "bis_wann", e.target.value)}
+                      type="date"
+                      value={a.bis_wann}
+                      onChange={(e) => setAufgabe(i, "bis_wann", e.target.value)}
+                      data-testid="aufgabe-bis"
                     />
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon"
-                      onClick={() => removeSchritt(i)}
-                      aria-label="Zeile entfernen"
-                      data-testid="schritt-remove"
+                      onClick={() => removeAufgabe(i)}
+                      aria-label="Aufgabe entfernen"
+                      data-testid="aufgabe-remove"
                     >
                       <Trash2 className="size-4" />
                     </Button>
+                    {a.erledigt && (
+                      <p className="text-xs text-emerald-600 dark:text-emerald-400 sm:col-span-4">
+                        ✓ erledigt
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -397,11 +454,11 @@ function ProtokollCard({
               type="button"
               variant="outline"
               size="sm"
-              onClick={addSchritt}
-              data-testid="schritt-add"
+              onClick={addAufgabe}
+              data-testid="aufgabe-add"
             >
               <Plus className="mr-1.5 size-4" />
-              Zeile hinzufügen
+              Aufgabe hinzufügen
             </Button>
           </div>
 
@@ -468,7 +525,7 @@ function ProtokollCard({
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    setForm(initialState(protokoll));
+                    setForm(initialState(protokoll, aufgaben));
                     setOpen(false);
                   }}
                   disabled={pending}
