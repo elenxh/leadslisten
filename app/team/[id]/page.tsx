@@ -3,8 +3,9 @@ import { notFound, redirect } from "next/navigation";
 import { AppHeader } from "@/components/app/app-header";
 import { isAdmin, requireLeitung } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import type { Aufgabe, Gespraechsprotokoll, Leitung } from "@/lib/types";
+import type { Aufgabe, Gespraechsprotokoll, Leitung, SlDatei, SlOrdner } from "@/lib/types";
 import { ProtokolleClient } from "./protokolle-client";
+import { DateienBereich } from "./dateien-bereich";
 
 export const dynamic = "force-dynamic";
 
@@ -71,6 +72,12 @@ export default async function TeamLeitungPage({
     leitungen = [{ id: me.id, name: me.name }];
   }
 
+  // Datei-Ablage der SL (RLS: eigene bzw. Admin alle).
+  const [{ data: ordnerData }, { data: dateiData }] = await Promise.all([
+    supabase.from("sl_ordner").select("*").eq("leitung_id", params.id),
+    supabase.from("sl_dateien").select("*").eq("leitung_id", params.id),
+  ]);
+
   return (
     <>
       <AppHeader leitung={me} />
@@ -81,6 +88,13 @@ export default async function TeamLeitungPage({
         leitungen={leitungen}
         aufgabenByProtokoll={aufgabenByProtokoll}
       />
+      <div className="mx-auto max-w-3xl px-4 pb-10">
+        <DateienBereich
+          leitungId={params.id}
+          ordner={(ordnerData ?? []) as SlOrdner[]}
+          dateien={(dateiData ?? []) as SlDatei[]}
+        />
+      </div>
     </>
   );
 }

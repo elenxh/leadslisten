@@ -1,9 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { CalendarDays, ClipboardList, Clock, FileSpreadsheet, FileUp, ListTodo, LogOut, ShieldCheck, Upload, Users, Wallet } from "lucide-react";
+import {
+  CalendarDays,
+  ChevronDown,
+  ClipboardList,
+  Clock,
+  FileSpreadsheet,
+  FileUp,
+  Folder,
+  LayoutGrid,
+  ListTodo,
+  LogOut,
+  ShieldCheck,
+  Upload,
+  Users,
+  Wallet,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -16,15 +31,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { LeitungAvatar } from "@/components/app/leitung-avatar";
 import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
 import type { Leitung } from "@/lib/types";
 
 export function AppHeader({ leitung }: { leitung: Leitung }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const admin = leitung.rolle === "admin";
   const [slUnread, setSlUnread] = useState(0);
 
   // Ungelesene SL-Meetings (nur für SLs) für den Badge zählen.
   useEffect(() => {
-    if (leitung.rolle === "admin") return;
+    if (admin) return;
     let cancel = false;
     (async () => {
       const supabase = createClient();
@@ -46,15 +64,12 @@ export function AppHeader({ leitung }: { leitung: Leitung }) {
       if (cancel) return;
       const seen = (ansicht as { gesehen_am: string } | null)?.gesehen_am ?? "";
       const rows = (meetings ?? []) as { created_at: string; updated_at: string }[];
-      const n = rows.filter(
-        (m) => !seen || m.created_at > seen || m.updated_at > seen,
-      ).length;
-      setSlUnread(n);
+      setSlUnread(rows.filter((m) => !seen || m.created_at > seen || m.updated_at > seen).length);
     })();
     return () => {
       cancel = true;
     };
-  }, [leitung.rolle]);
+  }, [admin]);
 
   async function logout() {
     const supabase = createClient();
@@ -62,6 +77,11 @@ export function AppHeader({ leitung }: { leitung: Leitung }) {
     router.replace("/login");
     router.refresh();
   }
+
+  const aktiv = (prefixes: string[]) =>
+    prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+
+  const slMeetingsHref = admin ? "/admin/sl-meetings" : "/sl-meetings";
 
   return (
     <header className="sticky top-0 z-30 border-b bg-background/80 backdrop-blur">
@@ -74,104 +94,132 @@ export function AppHeader({ leitung }: { leitung: Leitung }) {
         </Link>
 
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" render={<Link href="/team" />}>
-            <ClipboardList className="size-4 sm:mr-1.5" />
-            <span className="hidden sm:inline">Team</span>
-          </Button>
-          <Button variant="ghost" size="sm" render={<Link href="/stundennachweis" />}>
-            <Clock className="size-4 sm:mr-1.5" />
-            <span className="hidden sm:inline">Stundennachweis</span>
-          </Button>
-          <Button variant="ghost" size="sm" render={<Link href="/aufgaben" />}>
-            <ListTodo className="size-4 sm:mr-1.5" />
-            <span className="hidden sm:inline">Aufgaben</span>
-          </Button>
-          <Button variant="ghost" size="sm" render={<Link href="/import" />}>
-            <FileUp className="size-4 sm:mr-1.5" />
-            <span className="hidden sm:inline">Import</span>
-          </Button>
-          {leitung.rolle !== "admin" && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="relative"
-              render={<Link href="/sl-meetings" />}
-            >
-              <CalendarDays className="size-4 sm:mr-1.5" />
-              <span className="hidden sm:inline">SL-Meetings</span>
-              {slUnread > 0 && (
-                <span
-                  className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-4 text-primary-foreground"
-                  data-testid="sl-meetings-badge"
-                >
-                  {slUnread}
-                </span>
-              )}
-            </Button>
+          {/* Akquise */}
+          <NavGroup label="Akquise" active={aktiv(["/dashboard", "/schule", "/standorte", "/import"])}>
+            <NavItem href="/dashboard" icon={LayoutGrid} label="Dashboard (Schulen/Träger)" />
+            <NavItem href="/import" icon={FileUp} label="Import" />
+          </NavGroup>
+
+          {/* Team */}
+          <NavGroup label="Team" active={aktiv(["/team", "/stundennachweis", "/aufgaben", "/sl-meetings", "/admin/sl-meetings"])} dot={slUnread > 0}>
+            <NavItem href="/team" icon={ClipboardList} label="Gesprächsprotokolle" />
+            <NavItem href={slMeetingsHref} icon={CalendarDays} label="SL-Meetings" badge={!admin && slUnread > 0 ? slUnread : undefined} />
+            <NavItem href="/aufgaben" icon={ListTodo} label="Aufgaben" />
+            <NavItem href={admin ? "/team" : `/team/${leitung.id}#dateien`} icon={Folder} label="Dateien" />
+            <NavItem href="/stundennachweis" icon={Clock} label="Stundennachweis" />
+          </NavGroup>
+
+          {/* Verwaltung – nur Admin */}
+          {admin && (
+            <NavGroup label="Verwaltung" active={aktiv(["/admin"])}>
+              <NavItem href="/admin/abrechnung" icon={FileSpreadsheet} label="Abrechnung" />
+              <NavItem href="/admin/vertragsmodelle" icon={Wallet} label="Verträge" />
+              <NavItem href="/admin/leitungen" icon={Users} label="Leitungen" />
+              <NavItem href="/admin/import" icon={Upload} label="Alt-Import" />
+            </NavGroup>
           )}
-          {leitung.rolle === "admin" && (
-            <Button variant="ghost" size="sm" render={<Link href="/admin/vertragsmodelle" />}>
-              <Wallet className="size-4 sm:mr-1.5" />
-              <span className="hidden sm:inline">Verträge</span>
-            </Button>
-          )}
-          {leitung.rolle === "admin" && (
-            <Button variant="ghost" size="sm" render={<Link href="/admin/sl-meetings" />}>
-              <CalendarDays className="size-4 sm:mr-1.5" />
-              <span className="hidden sm:inline">SL-Meetings</span>
-            </Button>
-          )}
-          {leitung.rolle === "admin" && (
-            <Button variant="ghost" size="sm" render={<Link href="/admin/abrechnung" />}>
-              <FileSpreadsheet className="size-4 sm:mr-1.5" />
-              <span className="hidden sm:inline">Abrechnung</span>
-            </Button>
-          )}
-          {leitung.rolle === "admin" && (
-            <Button variant="ghost" size="sm" render={<Link href="/admin/leitungen" />}>
-              <Users className="size-4 sm:mr-1.5" />
-              <span className="hidden sm:inline">Leitungen</span>
-            </Button>
-          )}
-          {leitung.rolle === "admin" && (
-            <Button variant="ghost" size="sm" render={<Link href="/admin/import" />}>
-              <Upload className="size-4 sm:mr-1.5" />
-              <span className="hidden sm:inline">Alt-Import</span>
-            </Button>
-          )}
+
           <DropdownMenu>
-          <DropdownMenuTrigger
-            render={<Button variant="ghost" className="h-auto gap-2 px-2 py-1" />}
-          >
-            <LeitungAvatar leitung={leitung} />
-            <span className="hidden text-left sm:block">
-              <span className="block text-sm leading-tight font-medium">
-                {leitung.name}
+            <DropdownMenuTrigger render={<Button variant="ghost" className="h-auto gap-2 px-2 py-1" />}>
+              <LeitungAvatar leitung={leitung} />
+              <span className="hidden text-left sm:block">
+                <span className="block text-sm leading-tight font-medium">{leitung.name}</span>
+                <span className="block text-xs leading-tight text-muted-foreground">
+                  {admin ? "Admin" : leitung.region || "Leitung"}
+                </span>
               </span>
-              <span className="block text-xs leading-tight text-muted-foreground">
-                {leitung.rolle === "admin" ? "Admin" : leitung.region || "Leitung"}
-              </span>
-            </span>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel className="flex items-center gap-2">
-              {leitung.rolle === "admin" && (
-                <ShieldCheck className="size-4 text-emerald-600" />
-              )}
-              <span className="truncate">{leitung.email}</span>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem render={<Link href="/passwort-aendern" />}>
-              Passwort ändern
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={logout}>
-              <LogOut className="mr-2 size-4" />
-              Abmelden
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel className="flex items-center gap-2">
+                {admin && <ShieldCheck className="size-4 text-emerald-600" />}
+                <span className="truncate">{leitung.email}</span>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem render={<Link href="/passwort-aendern" />}>
+                Passwort ändern
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={logout}>
+                <LogOut className="mr-2 size-4" />
+                Abmelden
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </header>
+  );
+}
+
+// Dropdown-Gruppe: öffnet auf Desktop bei Hover (kontrolliert per Maus-Timer),
+// auf Touch/Klick über den Trigger. Aktiver Bereich wird hervorgehoben.
+function NavGroup({
+  label,
+  active,
+  dot,
+  children,
+}: {
+  label: string;
+  active: boolean;
+  dot?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const enter = () => {
+    if (timer.current) clearTimeout(timer.current);
+    setOpen(true);
+  };
+  const leave = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setOpen(false), 120);
+  };
+
+  return (
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <span onMouseEnter={enter} onMouseLeave={leave} className="inline-flex">
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn("relative", active && "bg-muted font-medium text-foreground")}
+            />
+          }
+        >
+          {label}
+          <ChevronDown className="ml-0.5 size-3.5 opacity-60" />
+          {dot && (
+            <span className="absolute right-0.5 top-0.5 size-2 rounded-full bg-primary" data-testid="nav-dot" />
+          )}
+        </DropdownMenuTrigger>
+      </span>
+      <DropdownMenuContent align="start" className="w-60" onMouseEnter={enter} onMouseLeave={leave}>
+        {children}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function NavItem({
+  href,
+  icon: Icon,
+  label,
+  badge,
+}: {
+  href: string;
+  icon: typeof LayoutGrid;
+  label: string;
+  badge?: number;
+}) {
+  return (
+    <DropdownMenuItem render={<Link href={href} />}>
+      <Icon className="mr-2 size-4 text-muted-foreground" />
+      <span className="flex-1">{label}</span>
+      {badge != null && badge > 0 && (
+        <span className="ml-2 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-4 text-primary-foreground">
+          {badge}
+        </span>
+      )}
+    </DropdownMenuItem>
   );
 }
