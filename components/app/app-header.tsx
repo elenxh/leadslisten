@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -163,37 +163,32 @@ function NavGroup({
   dot?: boolean;
   children: React.ReactNode;
 }) {
+  // Rein klick-gesteuert: base-ui öffnet/schließt per Klick auf den Auslöser,
+  // schließt bei Klick außerhalb, Escape oder Auswahl eines Unterpunkts.
+  // KEIN Hover, KEIN Schließ-Timer. `open` dient nur der Hervorhebung.
   const [open, setOpen] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const enter = () => {
-    if (timer.current) clearTimeout(timer.current);
-    setOpen(true);
-  };
-  const leave = () => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setOpen(false), 120);
-  };
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
-      <span onMouseEnter={enter} onMouseLeave={leave} className="inline-flex">
-        <DropdownMenuTrigger
-          render={
-            <Button
-              variant="ghost"
-              size="sm"
-              className={cn("relative", active && "bg-muted font-medium text-foreground")}
-            />
-          }
-        >
-          {label}
-          <ChevronDown className="ml-0.5 size-3.5 opacity-60" />
-          {dot && (
-            <span className="absolute right-0.5 top-0.5 size-2 rounded-full bg-primary" data-testid="nav-dot" />
-          )}
-        </DropdownMenuTrigger>
-      </span>
-      <DropdownMenuContent align="start" className="w-60" onMouseEnter={enter} onMouseLeave={leave}>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              "relative",
+              (active || open) && "bg-muted font-medium text-foreground",
+            )}
+          />
+        }
+      >
+        {label}
+        <ChevronDown className="ml-0.5 size-3.5 opacity-60" />
+        {dot && (
+          <span className="absolute right-0.5 top-0.5 size-2 rounded-full bg-primary" data-testid="nav-dot" />
+        )}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" sideOffset={4} className="w-60">
         {children}
       </DropdownMenuContent>
     </DropdownMenu>
