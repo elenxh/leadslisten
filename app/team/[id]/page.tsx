@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { AppHeader } from "@/components/app/app-header";
 import { isAdmin, requireLeitung } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import type { Gespraechsprotokoll, Leitung } from "@/lib/types";
+import type { Gespraechsprotokoll, Leitung, ProtokollAufgabe } from "@/lib/types";
 import { ProtokolleClient } from "./protokolle-client";
 
 export const dynamic = "force-dynamic";
@@ -39,13 +39,46 @@ export default async function TeamLeitungPage({
     .order("datum", { ascending: false })
     .order("created_at", { ascending: false });
 
+  const protokolleListe = (protokolle ?? []) as Gespraechsprotokoll[];
+
+  // Aufgaben aller dieser Protokolle laden + nach Protokoll gruppieren.
+  const aufgabenByProtokoll: Record<string, ProtokollAufgabe[]> = {};
+  const protokollIds = protokolleListe.map((p) => p.id);
+  if (protokollIds.length > 0) {
+    const { data: aufgabenData } = await supabase
+      .from("gespraechsprotokoll_aufgaben")
+      .select("*")
+      .in("protokoll_id", protokollIds)
+      .order("bis_wann", { ascending: true })
+      .order("created_at", { ascending: true });
+    for (const a of (aufgabenData ?? []) as ProtokollAufgabe[]) {
+      (aufgabenByProtokoll[a.protokoll_id] ??= []).push(a);
+    }
+  }
+
+  // Aktive Leitungen für die „Wer"-Auswahl (nur Admin darf frei zuweisen; SLs
+  // sehen sich selbst). Für SL genügt die eigene Person.
+  let leitungen: Pick<Leitung, "id" | "name">[] = [];
+  if (isAdmin(me)) {
+    const { data: l } = await supabase
+      .from("leitungen")
+      .select("id, name")
+      .eq("aktiv", true)
+      .order("name");
+    leitungen = (l ?? []) as Pick<Leitung, "id" | "name">[];
+  } else {
+    leitungen = [{ id: me.id, name: me.name }];
+  }
+
   return (
     <>
       <AppHeader leitung={me} />
       <ProtokolleClient
         me={me}
         owner={leitung as Pick<Leitung, "id" | "name" | "kuerzel" | "farbe">}
-        protokolle={(protokolle ?? []) as Gespraechsprotokoll[]}
+        protokolle={protokolleListe}
+        leitungen={leitungen}
+        aufgabenByProtokoll={aufgabenByProtokoll}
       />
     </>
   );

@@ -81,6 +81,7 @@ import type {
 import { createBroadcast, deleteBroadcast } from "@/app/dashboard/actions";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDate } from "@/lib/dates";
+import { MeineAufgabenBox, type AufgabeAnzeige } from "@/components/app/meine-aufgaben";
 
 type LegendeRow = Pick<FarbLegende, "standort_id" | "farbe" | "bezeichnung">;
 
@@ -190,6 +191,7 @@ export function DashboardClient({
   leitungen,
   farbLegende,
   broadcasts,
+  meineAufgaben,
 }: {
   schulen: SchuleMitLeitung[];
   me: Leitung;
@@ -198,6 +200,7 @@ export function DashboardClient({
   leitungen: Pick<Leitung, "id" | "name">[];
   farbLegende: LegendeRow[];
   broadcasts: Broadcast[];
+  meineAufgaben: AufgabeAnzeige[];
 }) {
   const router = useRouter();
   const admin = me.rolle === "admin";
@@ -603,6 +606,8 @@ export function DashboardClient({
           />
           {/* Broadcast-Infos an alle SLs – unter der Standort-Liste */}
           <BroadcastPanel broadcasts={broadcasts} isAdmin={admin} />
+          {/* Persönliche offene Aufgaben aus den Protokollen */}
+          <MeineAufgabenBox aufgaben={meineAufgaben} />
         </div>
       </aside>
 
@@ -1070,9 +1075,10 @@ export function DashboardClient({
           )}
         </div>
 
-        {/* Broadcast-Infos – mobil (Sidebar ist ausgeblendet) unten */}
-        <div className="lg:hidden">
+        {/* Broadcast-Infos + Aufgaben – mobil (Sidebar ausgeblendet) unten */}
+        <div className="space-y-4 lg:hidden">
           <BroadcastPanel broadcasts={broadcasts} isAdmin={admin} />
+          <MeineAufgabenBox aufgaben={meineAufgaben} />
         </div>
       </div>
 

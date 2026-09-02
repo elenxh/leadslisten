@@ -125,6 +125,19 @@ export interface Gespraechsprotokoll {
   updated_at: string;
 }
 
+// Aufgabe aus einem Protokoll: pro SL zuweisbar, abhakbar. KEINE
+// Vergütungszeit (erzeugt keine Stunden/Calls, nicht in der Abrechnung).
+export interface ProtokollAufgabe {
+  id: string;
+  protokoll_id: string;
+  was: string;
+  zugewiesen_an: string; // leitung_id
+  bis_wann: string; // ISO date
+  erledigt: boolean;
+  erledigt_am: string | null;
+  created_at: string;
+}
+
 // --- Stundennachweis / KPI ------------------------------------------
 export interface Vertragsmodell {
   id: string;

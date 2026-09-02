@@ -98,6 +98,19 @@ export default async function DashboardPage() {
     .order("created_at", { ascending: false });
   const broadcasts = (broadcastRows ?? []) as Broadcast[];
 
+  // Offene Aufgaben der eingeloggten Person (RLS: nur eigene). Fällig zuerst.
+  const { data: aufgabenRows } = await supabase
+    .from("gespraechsprotokoll_aufgaben")
+    .select("id, was, bis_wann")
+    .eq("zugewiesen_an", me.id)
+    .eq("erledigt", false)
+    .order("bis_wann", { ascending: true });
+  const meineAufgaben = (aufgabenRows ?? []) as {
+    id: string;
+    was: string;
+    bis_wann: string;
+  }[];
+
   return (
     <>
       <AppHeader leitung={me} />
@@ -114,6 +127,7 @@ export default async function DashboardPage() {
           leitungen={leitungen}
           farbLegende={farbLegende}
           broadcasts={broadcasts}
+          meineAufgaben={meineAufgaben}
         />
       )}
     </>

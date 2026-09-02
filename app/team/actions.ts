@@ -39,6 +39,15 @@ function adminClientOrError():
   }
 }
 
+// Eine Aufgaben-Zeile aus dem Formular. `id` gesetzt = bestehende Aufgabe
+// (erledigt-Status bleibt erhalten); ohne `id` = neue Aufgabe.
+export interface AufgabeInput {
+  id?: string;
+  was: string;
+  zugewiesen_an: string; // leitung_id
+  bis_wann: string; // YYYY-MM-DD
+}
+
 export interface ProtokollInput {
   datum?: string | null; // YYYY-MM-DD
   uhrzeit?: string | null; // "HH:MM"
@@ -47,6 +56,7 @@ export interface ProtokollInput {
   ergebnis?: string | null;
   naechste_schritte?: string | null;
   schritte?: ProtokollSchritt[];
+  aufgaben?: AufgabeInput[];
   wiedervorlage_am?: string | null; // YYYY-MM-DD
   ampel?: ProtokollAmpel | null;
   dauer_minuten?: number | null; // Meeting-Dauer (Pflicht bei neuen Protokollen)
@@ -94,6 +104,74 @@ function buildUpdate(felder: ProtokollInput): Record<string, unknown> {
   return update;
 }
 
+type AdminClient = ReturnType<typeof createAdminClient>;
+
+// Bereinigt + validiert die Aufgaben-Zeilen. Leere Zeilen fallen weg; teilweise
+// befüllte Zeilen sind ein Fehler (Was, Wer und Bis-wann sind zusammen Pflicht).
+// Nicht-Admins dürfen nur sich selbst zuweisen -> auf ownerId zwingen.
+function cleanAufgaben(
+  aufgaben: AufgabeInput[],
+  ownerId: string,
+  isAdmin: boolean,
+): { ok: true; rows: AufgabeInput[] } | { ok: false; error: string } {
+  const rows: AufgabeInput[] = [];
+  for (const a of aufgaben) {
+    const was = (a.was ?? "").trim();
+    const wer = isAdmin ? (a.zugewiesen_an ?? "").trim() : ownerId;
+    const bis = (a.bis_wann ?? "").slice(0, 10);
+    if (!was && !(a.zugewiesen_an ?? "").trim() && !bis) continue; // leere Zeile
+    if (!was || !wer || !bis) {
+      return { ok: false, error: "Aufgabe unvollständig: Was, Wer und Bis-wann angeben." };
+    }
+    rows.push({ id: a.id, was, zugewiesen_an: wer, bis_wann: bis });
+  }
+  return { ok: true, rows };
+}
+
+// Gleicht die Aufgaben eines Protokolls mit der Eingabe ab: bestehende (per id)
+// aktualisieren (erledigt-Status BLEIBT), neue einfügen, entfernte löschen.
+async function syncAufgaben(
+  admin: AdminClient,
+  protokollId: string,
+  rows: AufgabeInput[],
+): Promise<SimpleResult> {
+  const { data: vorhanden } = await admin
+    .from("gespraechsprotokoll_aufgaben")
+    .select("id")
+    .eq("protokoll_id", protokollId);
+  const bestehendeIds = new Set(((vorhanden ?? []) as { id: string }[]).map((r) => r.id));
+  const behalten = new Set<string>();
+
+  for (const r of rows) {
+    if (r.id && bestehendeIds.has(r.id)) {
+      behalten.add(r.id);
+      const { error } = await admin
+        .from("gespraechsprotokoll_aufgaben")
+        .update({ was: r.was, zugewiesen_an: r.zugewiesen_an, bis_wann: r.bis_wann })
+        .eq("id", r.id);
+      if (error) return { ok: false, error: error.message };
+    } else {
+      const { error } = await admin.from("gespraechsprotokoll_aufgaben").insert({
+        protokoll_id: protokollId,
+        was: r.was,
+        zugewiesen_an: r.zugewiesen_an,
+        bis_wann: r.bis_wann,
+      });
+      if (error) return { ok: false, error: error.message };
+    }
+  }
+
+  const zuLoeschen = Array.from(bestehendeIds).filter((id) => !behalten.has(id));
+  if (zuLoeschen.length > 0) {
+    const { error } = await admin
+      .from("gespraechsprotokoll_aufgaben")
+      .delete()
+      .in("id", zuLoeschen);
+    if (error) return { ok: false, error: error.message };
+  }
+  return { ok: true };
+}
+
 /** Legt ein Protokoll für die Person `leitungId` an. Admin für jede Person,
  *  SL nur für sich selbst. */
 export async function createProtokoll(
@@ -124,9 +202,18 @@ export async function createProtokoll(
     .select("id")
     .single();
   if (error) return { ok: false, error: error.message };
+  const neueId = (data as { id: string }).id;
+
+  if (felder.aufgaben !== undefined) {
+    const clean = cleanAufgaben(felder.aufgaben, leitungId, user.isAdmin);
+    if (!clean.ok) return clean;
+    const sync = await syncAufgaben(ac.admin, neueId, clean.rows);
+    if (!sync.ok) return sync;
+  }
 
   revalidatePath(`/team/${leitungId}`);
-  return { ok: true, id: (data as { id: string }).id };
+  revalidatePath("/dashboard");
+  return { ok: true, id: neueId };
 }
 
 /** Bearbeitet ein Protokoll. Admin alles, SL nur eigene. */
@@ -153,15 +240,60 @@ export async function updateProtokoll(
     return { ok: false, error: "Keine Berechtigung." };
 
   const update = buildUpdate(felder);
-  if (Object.keys(update).length === 0) return { ok: true };
+  if (Object.keys(update).length > 0) {
+    const { error } = await ac.admin
+      .from("gespraechsprotokolle")
+      .update(update)
+      .eq("id", id);
+    if (error) return { ok: false, error: error.message };
+  }
 
-  const { error } = await ac.admin
-    .from("gespraechsprotokolle")
-    .update(update)
-    .eq("id", id);
-  if (error) return { ok: false, error: error.message };
+  if (felder.aufgaben !== undefined) {
+    const clean = cleanAufgaben(felder.aufgaben, ownerId, user.isAdmin);
+    if (!clean.ok) return clean;
+    const sync = await syncAufgaben(ac.admin, id, clean.rows);
+    if (!sync.ok) return sync;
+  }
 
   revalidatePath(`/team/${ownerId}`);
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
+
+/**
+ * Hakt eine Aufgabe ab bzw. wieder auf. Admin für alle; SL nur für die IHR
+ * zugewiesenen Aufgaben. Reine Status-/Erinnerungsfunktion — KEINE Zeitwirkung.
+ */
+export async function setAufgabeErledigt(
+  aufgabeId: string,
+  erledigt: boolean,
+): Promise<SimpleResult> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: "Nicht angemeldet." };
+
+  const ac = adminClientOrError();
+  if (!ac.ok) return ac;
+
+  const { data: aufgabe, error: readErr } = await ac.admin
+    .from("gespraechsprotokoll_aufgaben")
+    .select("zugewiesen_an")
+    .eq("id", aufgabeId)
+    .single();
+  if (readErr || !aufgabe)
+    return { ok: false, error: "Aufgabe nicht gefunden." };
+
+  const zugewiesen = (aufgabe as { zugewiesen_an: string }).zugewiesen_an;
+  if (!user.isAdmin && user.id !== zugewiesen)
+    return { ok: false, error: "Keine Berechtigung." };
+
+  const { error } = await ac.admin
+    .from("gespraechsprotokoll_aufgaben")
+    .update({ erledigt, erledigt_am: erledigt ? new Date().toISOString() : null })
+    .eq("id", aufgabeId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/dashboard");
+  revalidatePath("/stundennachweis");
   return { ok: true };
 }
 
