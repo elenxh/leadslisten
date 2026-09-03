@@ -108,7 +108,7 @@ export function AnrufDialog({
           <DialogHeader>
             <DialogTitle>Anruf protokollieren</DialogTitle>
             <DialogDescription>
-              Ergebnis festhalten – optional Status setzen und Wiedervorlage
+              Ergebnis festhalten – optional Status setzen und Nachfassen
               planen. Nach dem Speichern bleibt der Dialog für den nächsten
               Eintrag offen.
             </DialogDescription>
@@ -182,7 +182,7 @@ export function AnrufDialog({
 
             {/* Wiedervorlage mit Schnellwahl */}
             <div className="space-y-2">
-              <Label htmlFor="anruf-wv">Wiedervorlage (optional)</Label>
+              <Label htmlFor="anruf-wv">Nachfassen (optional)</Label>
               <div className="flex flex-wrap items-center gap-2">
                 <Input
                   id="anruf-wv"

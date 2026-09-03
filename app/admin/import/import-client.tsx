@@ -246,7 +246,7 @@ export function ImportClient({
           <p className="text-xs text-muted-foreground">
             Erkannt aus Datei: {allRows.filter((r) => r.erstkontakt).length} ×
             Erstkontakt, {allRows.filter((r) => r.wiedervorlage).length} ×
-            Wiedervorlage, {allRows.filter((r) => r.status).length} × Status.
+            Nachfassen, {allRows.filter((r) => r.status).length} × Status.
           </p>
 
           {/* Preview-Tabelle (erste 10) */}
@@ -258,7 +258,7 @@ export function ImportClient({
                     <th className="px-3 py-2 font-medium">Schule</th>
                     <th className="px-3 py-2 font-medium">Schulart</th>
                     <th className="px-3 py-2 font-medium">Erstkontakt</th>
-                    <th className="px-3 py-2 font-medium">Wiedervorlage</th>
+                    <th className="px-3 py-2 font-medium">Nachfassen</th>
                     <th className="px-3 py-2 font-medium">Status</th>
                   </tr>
                 </thead>
@@ -415,7 +415,7 @@ export function ImportClient({
 
           <p className="text-xs text-muted-foreground">
             Hinweis: Bestehende Schulen (Name + Bezirk) werden nur in den
-            Stammdaten aktualisiert. Status, Wiedervorlage, Akquise-Notiz und
+            Stammdaten aktualisiert. Status, Nachfassen, Akquise-Notiz und
             bestehende Zuständigkeit bleiben unverändert.
           </p>
         </>

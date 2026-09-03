@@ -594,7 +594,7 @@ export function SchuleDetail({
 
               {/* c) Wiedervorlage – prominent mit Schnellwahl. */}
               <div className="space-y-2">
-                <Label htmlFor="wv-date">Wiedervorlage am</Label>
+                <Label htmlFor="wv-date">Nachfassen am</Label>
                 <div className="flex flex-wrap items-center gap-2">
                   <Input
                     id="wv-date"
@@ -725,7 +725,7 @@ export function SchuleDetail({
                 <p className="text-xs text-muted-foreground">Status</p>
                 <StatusBadge status={statusVal} />
               </div>
-              <InfoRow icon={Clock3} label="Wiedervorlage am">{schule.wiedervorlage_am ? formatDate(schule.wiedervorlage_am) : "—"}</InfoRow>
+              <InfoRow icon={Clock3} label="Nachfassen am">{schule.wiedervorlage_am ? formatDate(schule.wiedervorlage_am) : "—"}</InfoRow>
               <InfoRow icon={Clock3} label="Kontakt">{schule.erstkontakt_am ? formatDate(schule.erstkontakt_am) : "—"}</InfoRow>
               {schule.typ === "traeger" ? (
                 <InfoRow icon={GraduationCap} label="Kategorie">{traegerKategorieOderDefault(schule.traeger_kategorie)}</InfoRow>

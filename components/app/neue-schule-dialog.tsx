@@ -301,7 +301,7 @@ export function NeueSchuleDialog({
                 <Input id="ns-ek" type="date" value={f.erstkontakt_am} onChange={set("erstkontakt_am")} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="ns-wv">Wiedervorlage am</Label>
+                <Label htmlFor="ns-wv">Nachfassen am</Label>
                 <Input id="ns-wv" type="date" value={f.wiedervorlage_am} onChange={set("wiedervorlage_am")} />
               </div>
             </div>

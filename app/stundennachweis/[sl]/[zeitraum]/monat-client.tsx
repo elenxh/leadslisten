@@ -200,7 +200,7 @@ const KAT_FARBE = {
   call: { label: "Calls", dot: "bg-emerald-500" },
   vor_ort: { label: "Vor-Ort-Termine", dot: "bg-blue-500" },
   meeting: { label: "Meetings", dot: "bg-purple-500" },
-  wiedervorlage: { label: "Wiedervorlagen", dot: "bg-amber-500" },
+  wiedervorlage: { label: "Nachfassen", dot: "bg-amber-500" },
 } as const;
 type KatKey = keyof typeof KAT_FARBE;
 
