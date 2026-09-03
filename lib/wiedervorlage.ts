@@ -40,7 +40,7 @@ export function wiedervorlageInfo(
   let label: string;
   if (tage < 0) label = `überfällig · ${kurz}`;
   else if (tage === 0) label = "heute fällig";
-  else label = `Wiedervorlage: ${kurz}`;
+  else label = `Nachfassen: ${kurz}`;
 
   return {
     datum: d,
