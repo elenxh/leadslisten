@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { LeitungAvatar } from "@/components/app/leitung-avatar";
 import { createClient } from "@/lib/supabase/client";
+import { AUFGABEN_AKTIV } from "@/lib/features";
 import type { Leitung } from "@/lib/types";
 
 export function AppHeader({ leitung }: { leitung: Leitung }) {
@@ -82,10 +83,12 @@ export function AppHeader({ leitung }: { leitung: Leitung }) {
             <Clock className="size-4 sm:mr-1.5" />
             <span className="hidden sm:inline">Stundennachweis</span>
           </Button>
-          <Button variant="ghost" size="sm" render={<Link href="/aufgaben" />}>
-            <ListTodo className="size-4 sm:mr-1.5" />
-            <span className="hidden sm:inline">Aufgaben</span>
-          </Button>
+          {AUFGABEN_AKTIV && (
+            <Button variant="ghost" size="sm" render={<Link href="/aufgaben" />}>
+              <ListTodo className="size-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">Aufgaben</span>
+            </Button>
+          )}
           <Button variant="ghost" size="sm" render={<Link href="/import" />}>
             <FileUp className="size-4 sm:mr-1.5" />
             <span className="hidden sm:inline">Import</span>
