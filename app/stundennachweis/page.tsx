@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { isAdmin, requireLeitung } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { ladeAufgabenUebersicht } from "@/lib/aufgaben-data";
+import { AUFGABEN_AKTIV } from "@/lib/features";
 import type { Leitung } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -65,7 +66,7 @@ export default async function StundennachweisPage() {
                     </span>
                     {(() => {
                       const a = offenByLeitung.get(l.id);
-                      if (!a || a.offen === 0) return null;
+                      if (!AUFGABEN_AKTIV || !a || a.offen === 0) return null;
                       return (
                         <span className="flex shrink-0 items-center gap-1.5 text-xs">
                           {a.ueberfaellig > 0 && (

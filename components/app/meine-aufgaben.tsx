@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
 import { formatDate, todayISO } from "@/lib/dates";
+import { AUFGABEN_AKTIV } from "@/lib/features";
 import { setAufgabeErledigt } from "@/app/aufgaben/actions";
 
 export interface AufgabeAnzeige {
@@ -29,6 +30,7 @@ export function MeineAufgabenBox({
   const router = useRouter();
   const [pending, start] = useTransition();
 
+  if (!AUFGABEN_AKTIV) return null;
   if (aufgaben.length === 0) return null;
   const heute = todayISO();
 
