@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { LeitungAvatar } from "@/components/app/leitung-avatar";
 import { createClient } from "@/lib/supabase/client";
-import { AUFGABEN_AKTIV } from "@/lib/features";
+import { AUFGABEN_AKTIV, IMPORT_FUER_SL } from "@/lib/features";
 import type { Leitung } from "@/lib/types";
 
 export function AppHeader({ leitung }: { leitung: Leitung }) {
@@ -89,10 +89,12 @@ export function AppHeader({ leitung }: { leitung: Leitung }) {
               <span className="hidden sm:inline">Aufgaben</span>
             </Button>
           )}
-          <Button variant="ghost" size="sm" render={<Link href="/import" />}>
-            <FileUp className="size-4 sm:mr-1.5" />
-            <span className="hidden sm:inline">Import</span>
-          </Button>
+          {(leitung.rolle === "admin" || IMPORT_FUER_SL) && (
+            <Button variant="ghost" size="sm" render={<Link href="/import" />}>
+              <FileUp className="size-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">Import</span>
+            </Button>
+          )}
           {leitung.rolle !== "admin" && (
             <Button
               variant="ghost"

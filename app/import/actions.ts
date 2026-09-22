@@ -11,6 +11,7 @@ import {
   type TutorioRow,
 } from "@/lib/tutorio-import";
 import { traegerKategorieOderDefault } from "@/lib/schulart";
+import { IMPORT_FUER_SL } from "@/lib/features";
 
 export interface PreviewRow {
   sheet: string;
@@ -80,6 +81,12 @@ type Prepared =
 async function prepareImport(formData: FormData): Promise<Prepared> {
   const user = await currentUser();
   if (!user) return { ok: false, error: "Nicht angemeldet." };
+
+  // Import vorerst nur für Admins (Flag IMPORT_FUER_SL): SLs können ihn auch
+  // nicht per Direkt-Aufruf der Server-Action auslösen.
+  if (!IMPORT_FUER_SL && !user.isAdmin) {
+    return { ok: false, error: "Kein Zugriff auf den Import." };
+  }
 
   const standortId = String(formData.get("standortId") ?? "").trim();
   if (!standortId) return { ok: false, error: "Bitte einen Standort wählen." };
